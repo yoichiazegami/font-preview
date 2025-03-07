@@ -1,0 +1,20 @@
+{
+    "name": "font-preview",
+    "version": "1.0.0",
+    "description": "複数のフォントを試し打ちできるウェブアプリケーション",
+    "main": "index.html",
+    "scripts": {
+        "start": "npx serve",
+        "dev": "npx serve"
+    },
+    "keywords": [
+        "font",
+        "preview",
+        "typography"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "serve": "^14.2.1"
+    }
+}

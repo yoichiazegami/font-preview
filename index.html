@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フォントプレビュー</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>フォントプレビュー</h1>
+
+        <div class="controls">
+            <div class="font-selector">
+                <label for="font-select">フォント選択:</label>
+                <select id="font-select">
+                    <option value="MyHandwrittenFont">手書きフォント</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Helvetica">Helvetica</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Impact">Impact</option>
+                    <option value="Comic Sans MS">Comic Sans MS</option>
+                    <option value="Tahoma">Tahoma</option>
+                    <option value="Trebuchet MS">Trebuchet MS</option>
+                    <option value="メイリオ">メイリオ</option>
+                    <option value="游ゴシック">游ゴシック</option>
+                    <option value="游明朝">游明朝</option>
+                    <option value="MS Pゴシック">MS Pゴシック</option>
+                    <option value="MS P明朝">MS P明朝</option>
+                </select>
+            </div>
+
+            <div class="size-selector">
+                <label for="font-size">フォントサイズ:</label>
+                <input type="range" id="font-size" min="8" max="72" value="16">
+                <span id="size-value">16px</span>
+            </div>
+
+            <div class="weight-selector">
+                <label for="font-weight">太さ:</label>
+                <select id="font-weight">
+                    <option value="normal">標準</option>
+                    <option value="bold">太字</option>
+                </select>
+            </div>
+
+            <div class="letter-spacing-selector">
+                <label for="letter-spacing">字間:</label>
+                <input type="range" id="letter-spacing" min="-2" max="100" value="0" step="0.5">
+                <span id="letter-spacing-value">0px</span>
+            </div>
+
+            <div class="line-height-selector">
+                <label for="line-height">行間:</label>
+                <input type="range" id="line-height" min="0.8" max="100" value="1.6" step="0.1">
+                <span id="line-height-value">1.6</span>
+            </div>
+        </div>
+
+        <div class="preview-container">
+            <div class="preview-header">
+                <h2>プレビュー</h2>
+                <div class="font-info">
+                    <span id="current-font">Arial</span>, <span id="current-size">16px</span>, <span
+                        id="current-weight">標準</span>, 字間: <span id="current-letter-spacing">0px</span>, 行間: <span
+                        id="current-line-height">1.6</span>
+                </div>
+            </div>
+
+            <div class="preview-content" id="preview-text" contenteditable="true">
+                <p>SAMPLE</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
