@@ -6,6 +6,20 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: 'MyHandwrittenFont80';
+    src: url('fonts/my_handwritten_font80.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'MyHandwrittenFont446737';
+    src: url('fonts/my_handwritten_font_446737.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;

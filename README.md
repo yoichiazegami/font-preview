@@ -23,7 +23,9 @@
 
 アプリケーションは `fonts` フォルダ内のウェブフォントを自動的に読み込みます。現在、以下のフォントが含まれています：
 
-- 手書きフォント (MyHandwrittenFont)
+- 手書きフォント1 (MyHandwrittenFont)
+- 手書きフォント2 (MyHandwrittenFont80)
+- 手書きフォント3 (MyHandwrittenFont446737)
 
 新しいウェブフォントを追加するには：
 
