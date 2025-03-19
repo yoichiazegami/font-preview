@@ -1,20 +1,15 @@
 [build]
-  command = "node generate-fontlist.js"
+  command = "npm install"
   publish = "."
   functions = "netlify/functions"
+
+[dev]
+  functions = "netlify/functions"
+  publish = "."
 
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["express", "multer"]
-
-[build.environment]
-  NODE_VERSION = "14"
-
-[[headers]]
-  for = "/fonts/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Cache-Control = "public, max-age=31536000"
 
 [[headers]]
   for = "/api/font/*"
@@ -53,4 +48,14 @@
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/list-fonts"
+  to = "/.netlify/functions/list-fonts"
+  status = 200
+
+[[redirects]]
+  from = "/api/font/*"
+  to = "/.netlify/functions/get-font/:splat"
   status = 200 
