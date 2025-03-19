@@ -605,8 +605,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log(`${fonts.length}個のフォントを登録します`);
 
-        // FontFace APIを直接使用するように変更
-        const fontLoadingPromises = [];
+        // 従来のCSSスタイルシート方式に戻す
+        const styleElement = document.createElement('style');
+        styleElement.className = 'dynamic-font-faces';
+        let cssRules = '';
+        window.fontBlobUrls = [];
 
         // フォントデータを処理
         fonts.forEach((font, index) => {
@@ -633,48 +636,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    // ArrayBufferをBlobに変換してフォーマットを明示
-                    const fontBlob = new Blob([font.data], { type: font.mimeType || 'font/woff2' });
-                    // BlobからURLを作成
-                    const fontUrl = URL.createObjectURL(fontBlob);
-                    window.fontBlobUrls.push(fontUrl);
+                    // ArrayBufferをBase64エンコードに変換
+                    const base64Font = arrayBufferToBase64(font.data);
+                    const mimeType = font.mimeType || 'font/woff2';
+                    const dataUrl = `data:${mimeType};base64,${base64Font}`;
 
-                    // FontFaceオブジェクトを作成（Blobの参照URLを使用）
-                    const fontFace = new FontFace(
-                        fontFamilyName,
-                        `url(${fontUrl})`,
-                        {
-                            style: 'normal',
-                            weight: '400',
-                            display: 'auto'
-                        }
-                    );
-
-                    // フォントをロードし、フォントリストに追加
-                    const loadPromise = fontFace.load()
-                        .then(loadedFace => {
-                            document.fonts.add(loadedFace);
-                            console.log(`フォント「${originalName}」を直接FontFace APIで登録: ${fontFamilyName}`);
-                            return loadedFace;
-                        })
-                        .catch(err => {
-                            console.error(`フォント「${originalName}」の読み込みに失敗:`, err);
-                            // エラーが発生してもプロセスは継続
-                        });
-
-                    fontLoadingPromises.push(loadPromise);
+                    // @font-face ルールを追加
+                    cssRules += `
+@font-face {
+  font-family: '${fontFamilyName}';
+  src: url('${dataUrl}');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+`;
+                    console.log(`フォント「${originalName}」をデータURLで登録: ${fontFamilyName}`);
                 } catch (fontFaceError) {
-                    // FontFace生成自体でエラーが発生した場合
-                    console.error(`フォント「${originalName}」のFontFace生成エラー:`, fontFaceError);
+                    console.error(`フォント「${originalName}」のCSS生成エラー:`, fontFaceError);
                 }
             } catch (error) {
                 console.error(`フォント「${font.originalName || 'unknown'}」の処理エラー:`, error);
             }
         });
 
+        // スタイル要素にCSSルールを設定
+        styleElement.textContent = cssRules;
+        document.head.appendChild(styleElement);
+        console.log('フォントスタイルをページに追加しました');
+
         // すべてのフォントの読み込みを待つ
         try {
-            await Promise.allSettled(fontLoadingPromises);
+            await document.fonts.ready;
             console.log('すべてのフォントの読み込みが完了しました');
         } catch (e) {
             console.warn('フォントの読み込み待機中にエラーが発生しました:', e);
@@ -686,7 +679,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return fonts;
     }
 
-    // MIMEタイプからフォーマット文字列を取得（BlobURL方式では使わないが残しておく）
+    // ArrayBufferをBase64に変換する関数
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
+    // MIMEタイプからフォーマット文字列を取得
     function getFormatFromMimeType(mimeType) {
         switch (mimeType) {
             case 'font/woff2': return 'woff2';
