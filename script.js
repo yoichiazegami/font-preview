@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fontSizeInput = document.getElementById('font-size');
     const letterSpacingInput = document.getElementById('letter-spacing');
     const lineHeightInput = document.getElementById('line-height');
+    const useNormalFontCheckbox = document.getElementById('use-normal-font');
     const sizeValueDisplay = document.getElementById('size-value');
     const letterSpacingValueDisplay = document.getElementById('letter-spacing-value');
     const lineHeightValueDisplay = document.getElementById('line-height-value');
@@ -14,9 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentLetterSpacingDisplay = document.getElementById('current-letter-spacing');
     const currentLineHeightDisplay = document.getElementById('current-line-height');
 
-    // 詳細設定要素
-    const advancedSettingsToggle = document.getElementById('advanced-settings-toggle');
-    const advancedSettingsPanel = document.getElementById('advanced-settings-panel');
+    // 文字方向と文字揃え要素
     const writingModeSelect = document.getElementById('writing-mode');
     const textAlignSelect = document.getElementById('text-align');
     const currentWritingModeDisplay = document.getElementById('current-writing-mode');
@@ -40,12 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
     lineHeightInput.max = 3;
     lineHeightValueDisplay.textContent = '2';
 
-    // 詳細設定パネルの表示/非表示切り替え
-    advancedSettingsToggle.addEventListener('click', () => {
-        advancedSettingsPanel.classList.toggle('hidden');
-        advancedSettingsToggle.textContent =
-            advancedSettingsPanel.classList.contains('hidden') ? '詳細な設定' : '詳細設定を閉じる';
-    });
+    // プレビュー領域の基本スタイルを設定（テキストの折り返し）
+    previewText.style.wordWrap = 'break-word';
+    previewText.style.overflowWrap = 'break-word';
+    previewText.style.whiteSpace = 'pre-wrap';
+
+    // スペルチェックをオフに設定
+    previewText.setAttribute('spellcheck', 'false');
+
+    // サンプルテキストを空に設定
+    previewText.textContent = '';
+    previewText.setAttribute('placeholder', 'ここに入力してください');
 
     // スライダー値の表示を更新するイベントリスナー
     fontSizeInput.addEventListener('input', () => {
@@ -290,6 +294,12 @@ document.addEventListener('DOMContentLoaded', () => {
     lineHeightInput.addEventListener('input', updatePreview);
     writingModeSelect.addEventListener('change', updatePreview);
     textAlignSelect.addEventListener('change', updatePreview);
+    useNormalFontCheckbox.addEventListener('change', () => {
+        // チェックボックスの状態に応じてフォント選択欄の有効/無効を切り替え
+        fontNameSelect.disabled = useNormalFontCheckbox.checked;
+        fontNumberSelect.disabled = useNormalFontCheckbox.checked;
+        updatePreview();
+    });
 
     // プレビューの更新関数
     function updatePreview() {
@@ -300,13 +310,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedLineHeight = lineHeightInput.value;
         const selectedWritingMode = writingModeSelect.value;
         const selectedTextAlign = textAlignSelect.value;
+        const useNormalFont = useNormalFontCheckbox.checked;
 
         console.log("プレビュー更新:", selectedName, selectedNumber);
 
         // フォント名の設定
         let fontFamily;
 
-        if (selectedName && selectedNumber) {
+        if (useNormalFont) {
+            // 通常のフォントを使用する場合
+            fontFamily = 'Helvetica, Arial, sans-serif';
+            console.log("通常フォント使用: Helvetica");
+        } else if (selectedName && selectedNumber) {
             // フルネームの生成
             const fullFontName = `${selectedName}_${selectedNumber}`;
             fontFamily = `"${fullFontName}"`;
@@ -326,13 +341,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
             if (selectedTextAlign === 'left') {
                 previewText.classList.add('vertical-align-top');
-                previewText.style.textAlign = 'start';
             } else if (selectedTextAlign === 'center') {
                 previewText.classList.add('vertical-align-center');
-                previewText.style.textAlign = 'center';
             } else if (selectedTextAlign === 'right') {
                 previewText.classList.add('vertical-align-bottom');
-                previewText.style.textAlign = 'end';
             }
 
             // 表示名の変換
@@ -356,8 +368,12 @@ document.addEventListener('DOMContentLoaded', () => {
         previewText.style.lineHeight = selectedLineHeight;
 
         // 情報表示の更新
-        currentFontDisplay.textContent = (selectedName && selectedNumber) ?
-            `${selectedName}_${selectedNumber}` : 'デフォルト';
+        if (useNormalFont) {
+            currentFontDisplay.textContent = 'Helvetica';
+        } else {
+            currentFontDisplay.textContent = (selectedName && selectedNumber) ?
+                `${selectedName}_${selectedNumber}` : 'デフォルト';
+        }
         currentSizeDisplay.textContent = `${selectedSize}px`;
         currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
         currentLineHeightDisplay.textContent = selectedLineHeight;

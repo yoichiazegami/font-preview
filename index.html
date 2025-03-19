@@ -10,71 +10,63 @@
 
 <body>
     <div class="container">
-        <h1>フォントプレビュー</h1>
-
         <div class="controls">
             <div class="font-selector">
-                <label for="font-name-select">フォント名:</label>
-                <select id="font-name-select">
-                    <!-- フォント名オプションはJavaScriptで動的に生成されます -->
-                </select>
-                <label for="font-number-select">番号:</label>
-                <select id="font-number-select">
-                    <!-- フォント番号オプションはJavaScriptで動的に生成されます -->
-                </select>
+                <label for="font-name-select">フォント名</label>
+                <select id="font-name-select"></select>
+
+                <label for="font-number-select">番号</label>
+                <select id="font-number-select"></select>
+
+                <div class="normal-font-option">
+                    <input type="checkbox" id="use-normal-font">
+                    <label for="use-normal-font">通常のフォントで表示</label>
+                </div>
             </div>
 
             <div class="size-selector">
-                <label for="font-size">フォントサイズ:</label>
+                <label for="font-size">サイズ: <span id="size-value">16px</span></label>
                 <input type="range" id="font-size" min="8" max="72" value="16">
-                <span id="size-value">16px</span>
             </div>
 
             <div class="letter-spacing-selector">
-                <label for="letter-spacing">字間:</label>
-                <input type="range" id="letter-spacing" min="-2" max="100" value="0" step="0.5">
-                <span id="letter-spacing-value">0px</span>
+                <label for="letter-spacing">字間: <span id="letter-spacing-value">0em</span></label>
+                <input type="range" id="letter-spacing" min="-0.5" max="1" step="0.01" value="0">
             </div>
 
             <div class="line-height-selector">
-                <label for="line-height">行間:</label>
-                <input type="range" id="line-height" min="0.8" max="100" value="1.6" step="0.1">
-                <span id="line-height-value">1.6</span>
+                <label for="line-height">行間: <span id="line-height-value">1.6</span></label>
+                <input type="range" id="line-height" min="1" max="3" step="0.1" value="1.6">
             </div>
 
-            <div class="advanced-settings">
-                <button id="advanced-settings-toggle">詳細な設定</button>
-                <div id="advanced-settings-panel" class="hidden">
-                    <div class="writing-mode-selector">
-                        <label for="writing-mode">文字方向:</label>
-                        <select id="writing-mode">
-                            <option value="horizontal-tb">横書き</option>
-                            <option value="vertical-rl">縦書き</option>
-                        </select>
-                    </div>
-                    <div class="text-align-selector">
-                        <label for="text-align">文字揃え:</label>
-                        <select id="text-align">
-                            <!-- テキスト揃えオプションはJavaScriptで動的に生成されます -->
-                        </select>
-                    </div>
-                </div>
+            <div class="writing-mode-selector">
+                <label for="writing-mode">方向</label>
+                <select id="writing-mode">
+                    <option value="horizontal-tb">横書き</option>
+                    <option value="vertical-rl">縦書き</option>
+                </select>
+            </div>
+
+            <div class="text-align-selector">
+                <label for="text-align">揃え</label>
+                <select id="text-align">
+                    <!-- オプションはJavaScriptで動的に生成されます -->
+                </select>
             </div>
         </div>
 
         <div class="preview-container">
             <div class="preview-header">
-                <h2>プレビュー</h2>
                 <div class="font-info">
-                    <span id="current-font">デフォルト</span>, <span id="current-size">16px</span>,
-                    字間: <span id="current-letter-spacing">0px</span>, 行間: <span id="current-line-height">1.6</span>,
-                    <span id="current-writing-mode">横書き</span>, <span id="current-text-align">左揃え</span>
+                    <span>フォント: <span id="current-font">デフォルト</span></span>
+                    <span>サイズ: <span id="current-size">16px</span></span>
+                    <span>字間: <span id="current-letter-spacing">0em</span></span>
+                    <span>行間: <span id="current-line-height">1.6</span></span>
+                    <span>文字方向: <span id="current-writing-mode">横書き</span></span>
+                    <span>テキスト揃え: <span id="current-text-align">左揃え</span></span>
                 </div>
             </div>
-
-            <div class="preview-content" id="preview-text" contenteditable="true">
-                <p>SAMPLE</p>
-            </div>
+            <div id="preview-text" class="preview-content" contenteditable="true"></div>
         </div>
     </div>
 
