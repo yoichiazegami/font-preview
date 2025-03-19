@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フォントプレビュー</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="font-selector">
+                <label for="font-name-select">フォント名</label>
+                <select id="font-name-select"></select>
+
+                <label for="font-number-select">番号</label>
+                <select id="font-number-select"></select>
+
+                <div class="normal-font-option">
+                    <input type="checkbox" id="use-normal-font">
+                    <label for="use-normal-font">通常のフォントで表示</label>
+                </div>
+            </div>
+
+            <div class="size-selector">
+                <label for="font-size">サイズ: <span id="size-value">16px</span></label>
+                <input type="range" id="font-size" min="8" max="72" value="16">
+            </div>
+
+            <div class="letter-spacing-selector">
+                <label for="letter-spacing">字間: <span id="letter-spacing-value">0em</span></label>
+                <input type="range" id="letter-spacing" min="-0.5" max="1" step="0.01" value="0">
+            </div>
+
+            <div class="line-height-selector">
+                <label for="line-height">行間: <span id="line-height-value">1.6</span></label>
+                <input type="range" id="line-height" min="1" max="3" step="0.1" value="1.6">
+            </div>
+
+            <div class="writing-mode-selector">
+                <label for="writing-mode">方向</label>
+                <select id="writing-mode">
+                    <option value="horizontal-tb">横書き</option>
+                    <option value="vertical-rl">縦書き</option>
+                </select>
+            </div>
+
+            <div class="text-align-selector">
+                <label for="text-align">揃え</label>
+                <select id="text-align">
+                    <!-- オプションはJavaScriptで動的に生成されます -->
+                </select>
+            </div>
+        </div>
+
+        <!-- 管理者機能セクション -->
+        <div class="admin-section">
+            <button id="admin-toggle" class="admin-toggle">管理者機能</button>
+            <div id="admin-panel" class="admin-panel hidden">
+                <h3>フォントアップロード</h3>
+                <div class="admin-controls">
+                    <div class="font-upload">
+                        <input type="file" id="font-upload" accept=".woff2,.woff,.ttf,.otf" multiple>
+                        <label for="font-upload" class="upload-button">フォントファイルを選択</label>
+                        <p class="upload-note">複数のフォントを一度にアップロードできます</p>
+                        <div id="upload-status"></div>
+                    </div>
+                    <div class="font-list">
+                        <h4>アップロードされたフォント</h4>
+                        <ul id="uploaded-fonts"></ul>
+                    </div>
+                </div>
+                <button id="refresh-fonts" class="refresh-button">フォントリストを更新</button>
+            </div>
+        </div>
+
+        <div class="preview-container">
+            <div class="preview-header">
+                <div class="font-info">
+                    <span>フォント: <span id="current-font">デフォルト</span></span>
+                    <span>サイズ: <span id="current-size">16px</span></span>
+                    <span>字間: <span id="current-letter-spacing">0em</span></span>
+                    <span>行間: <span id="current-line-height">1.6</span></span>
+                    <span>文字方向: <span id="current-writing-mode">横書き</span></span>
+                    <span>テキスト揃え: <span id="current-text-align">左揃え</span></span>
+                </div>
+            </div>
+            <div id="preview-text" class="preview-content" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
