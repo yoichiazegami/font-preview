@@ -594,18 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 既存のスタイル要素を削除
         document.querySelectorAll('style.dynamic-font-faces').forEach(el => el.remove());
 
-        // 既存のCSSルールを削除
-        document.fonts.forEach(font => {
-            if (font.family.startsWith("'") && font.family.endsWith("'")) {
-                // カスタムフォントを削除
-                try {
-                    document.fonts.delete(font);
-                } catch (e) {
-                    console.warn('フォント削除エラー:', e);
-                }
-            }
-        });
-
         // 既存のBlobURLを解放
         if (window.fontBlobUrls) {
             window.fontBlobUrls.forEach(url => {
@@ -617,12 +605,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log(`${fonts.length}個のフォントを登録します`);
 
-        // スタイル要素を作成
-        const styleElement = document.createElement('style');
-        styleElement.className = 'dynamic-font-faces';
-
-        // CSS @font-face ルールを構築
-        let cssRules = '';
+        // FontFace APIを直接使用するように変更
+        const fontLoadingPromises = [];
 
         // フォントデータを処理
         fonts.forEach((font, index) => {
@@ -632,14 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // ArrayBufferからBlobを作成
-                const blob = new Blob([font.data], { type: font.mimeType });
-
-                // BlobからURLを生成
-                const blobUrl = URL.createObjectURL(blob);
-                window.fontBlobUrls.push(blobUrl);
-
-                // フォントファミリー名 - 単純なものにする
+                // シンプルなフォントID
                 const fontFamilyName = `custom-font-${index + 1}`;
 
                 // 元のフォント名とIDをマッピング
@@ -652,33 +629,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.fontNameToId.set(`${parsed.name}_${parsed.number}`, fontFamilyName);
                 }
 
-                // @font-face ルールを追加
-                cssRules += `
-@font-face {
-  font-family: '${fontFamilyName}';
-  src: url('${blobUrl}') format('${getFormatFromMimeType(font.mimeType)}');
-  font-weight: normal;
-  font-style: normal;
-  font-display: block;
-}
-`;
-                console.log(`フォント「${font.originalName}」をBlobURLで登録: ${fontFamilyName}`);
+                // FontFaceオブジェクトを作成
+                const fontFace = new FontFace(
+                    fontFamilyName,
+                    font.data,
+                    {
+                        style: 'normal',
+                        weight: '400',
+                        display: 'auto'
+                    }
+                );
+
+                // フォントをロードし、フォントリストに追加
+                const loadPromise = fontFace.load()
+                    .then(loadedFace => {
+                        document.fonts.add(loadedFace);
+                        console.log(`フォント「${font.originalName}」を直接FontFace APIで登録: ${fontFamilyName}`);
+                        return loadedFace;
+                    })
+                    .catch(err => {
+                        console.error(`フォント「${font.originalName}」の読み込みに失敗:`, err);
+                    });
+
+                fontLoadingPromises.push(loadPromise);
             } catch (error) {
                 console.error(`フォント「${font.originalName}」の処理エラー:`, error);
             }
         });
 
-        // CSSルールをスタイル要素に追加
-        styleElement.textContent = cssRules;
-
-        // スタイル要素をドキュメントに追加
-        document.head.appendChild(styleElement);
-
-        console.log('フォントスタイルをページに追加しました');
-
-        // フォントのロードを待つ
+        // すべてのフォントの読み込みを待つ
         try {
-            await document.fonts.ready;
+            await Promise.allSettled(fontLoadingPromises);
             console.log('すべてのフォントの読み込みが完了しました');
         } catch (e) {
             console.warn('フォントの読み込み待機中にエラーが発生しました:', e);
@@ -690,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return fonts;
     }
 
-    // MIMEタイプからフォーマット文字列を取得
+    // MIMEタイプからフォーマット文字列を取得（BlobURL方式では使わないが残しておく）
     function getFormatFromMimeType(mimeType) {
         switch (mimeType) {
             case 'font/woff2': return 'woff2';
