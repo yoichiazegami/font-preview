@@ -220,7 +220,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ページにフォントを追加
     async function addFontsToPage(fonts) {
-        if (!fonts || fonts.length === 0) return;
+        if (!fonts || fonts.length === 0) {
+            console.error('追加するフォントがありません');
+            return;
+        }
+
+        console.log(`addFontsToPage: ${fonts.length}個のフォントを登録します`);
+
+        // デバッグ: 各フォントの情報をログ出力
+        fonts.forEach((font, index) => {
+            console.log(`フォント[${index}]情報:`, {
+                originalName: font.originalName,
+                displayName: font.displayName,
+                dataSize: font.data ? font.data.byteLength : 'データなし',
+                mimeType: font.mimeType
+            });
+        });
 
         // 既存のスタイル要素を削除
         document.querySelectorAll('style.dynamic-font-faces').forEach(el => el.remove());
@@ -234,8 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.fontBlobUrls = [];
         window.fontNameToId = window.fontNameToId || new Map();
 
-        console.log(`${fonts.length}個のフォントを登録します`);
-
         // 従来のCSSスタイルシート方式に戻す
         const styleElement = document.createElement('style');
         styleElement.className = 'dynamic-font-faces';
@@ -243,21 +256,23 @@ document.addEventListener('DOMContentLoaded', () => {
         window.fontBlobUrls = [];
 
         // フォントデータを処理
-        fonts.forEach((font, index) => {
+        for (let i = 0; i < fonts.length; i++) {
+            const font = fonts[i];
+
             if (!font.data) {
-                console.warn(`フォント「${font.originalName}」にデータがありません`);
-                return;
+                console.warn(`フォント「${font.originalName || font.displayName}」にデータがありません`);
+                continue;
             }
 
             try {
                 // シンプルで安全なフォントID（数字のみ）
-                const fontFamilyName = `font-${index + 1}`;
+                const fontFamilyName = `font-${i + 1}`;
 
                 // 元のフォント名とIDをマッピング
                 font.id = fontFamilyName;
 
                 // originalNameがnullやundefinedの場合に対処
-                const originalName = font.originalName || `unknown-font-${index}`;
+                const originalName = font.originalName || font.displayName || `unknown-font-${i}`;
                 window.fontNameToId.set(originalName, fontFamilyName);
 
                 // フォント番号がある場合は、フォント名_番号の形式も登録
@@ -271,6 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const base64Font = arrayBufferToBase64(font.data);
                     const mimeType = font.mimeType || 'font/woff2';
                     const dataUrl = `data:${mimeType};base64,${base64Font}`;
+
+                    // データURLを保存（プレビュー用）
+                    font.dataUrl = dataUrl;
 
                     // @font-face ルールを追加
                     cssRules += `
@@ -287,9 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error(`フォント「${originalName}」のCSS生成エラー:`, fontFaceError);
                 }
             } catch (error) {
-                console.error(`フォント「${font.originalName || 'unknown'}」の処理エラー:`, error);
+                console.error(`フォント「${font.originalName || font.displayName || 'unknown'}」の処理エラー:`, error);
             }
-        });
+        }
 
         // スタイル要素にCSSルールを設定
         styleElement.textContent = cssRules;
@@ -303,9 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.warn('フォントの読み込み待機中にエラーが発生しました:', e);
         }
-
-        // プレビューを更新
-        updatePreview();
 
         return fonts;
     }
@@ -725,13 +740,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // フォント検出・読み込み部分の更新
-    async function loadFontsFromRepository() {
+    async function loadFontsFromRepository(timestamp = new Date().getTime()) {
         try {
             console.log('GitHubリポジトリからフォントを読み込みます...');
 
             // Netlify Functionsを使ってGitHubリポジトリからフォント一覧を取得
             // クエリパラメータにタイムスタンプを追加してキャッシュを回避
-            const timestamp = new Date().getTime();
             const listResponse = await fetch(`/.netlify/functions/list-fonts?t=${timestamp}`);
 
             if (!listResponse.ok) {
@@ -812,15 +826,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            console.log(`フォント取得結果: 成功=${successCount}, 失敗=${errorCount}`);
+            console.log(`フォント取得結果: 成功=${successCount}, 失敗=${errorCount}, 合計=${fonts.length}`);
 
             // フォントをページに追加
             if (fonts.length > 0) {
                 console.log(`GitHub経由で${fonts.length}個のフォントをページに追加します`);
-                await addFontsToPage(fonts);
+                const processedFonts = await addFontsToPage(fonts);
 
                 // fontsInFolderに新しいフォントを設定（上書き）
-                fontsInFolder = fonts;
+                fontsInFolder = processedFonts || fonts;
+                console.log(`fontsInFolder更新完了: ${fontsInFolder.length}個のフォント`);
 
                 // IndexedDBにフォントを保存
                 await saveFontsToIndexedDB(fonts);
@@ -896,5 +911,49 @@ document.addEventListener('DOMContentLoaded', () => {
         fontStatusElement.style.color = '#666';
 
         console.log('プレビューをリセットしました');
+    }
+
+    // フォントを更新・リロードする関数
+    async function refreshFonts() {
+        console.log('フォントリストを更新しています...');
+
+        try {
+            // ローディング表示
+            const loadingElement = document.getElementById('loading-status');
+            if (loadingElement) {
+                loadingElement.textContent = 'フォントリストを更新中...';
+                loadingElement.style.display = 'block';
+            }
+
+            // キャッシュを避けるためにタイムスタンプを追加
+            const timestamp = new Date().getTime();
+            await loadFontsFromRepository(timestamp);
+
+            // フォントリストを更新
+            createFontNameOptions();
+            createFontNumberOptions();
+
+            // プレビューを更新
+            updatePreview();
+
+            // ローディング表示を非表示
+            if (loadingElement) {
+                loadingElement.textContent = 'フォントリストを更新しました';
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                }, 2000);
+            }
+
+            console.log('フォントリストの更新が完了しました');
+        } catch (error) {
+            console.error('フォントリストの更新に失敗しました:', error);
+
+            // エラー表示
+            const loadingElement = document.getElementById('loading-status');
+            if (loadingElement) {
+                loadingElement.textContent = `エラー: ${error.message || 'フォントリストの更新に失敗しました'}`;
+                loadingElement.style.color = 'red';
+            }
+        }
     }
 }); 

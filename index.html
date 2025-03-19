@@ -6,21 +6,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>フォントプレビュー</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .status-message {
+            margin-top: 5px;
+            color: #666;
+            font-size: 14px;
+            display: none;
+        }
+
+        .action-button {
+            padding: 8px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .action-button:hover {
+            background-color: #45a049;
+        }
+
+        .action-button:active {
+            background-color: #3e8e41;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container">
-        <div class="controls">
-            <div class="font-selector">
-                <label for="font-name-select">フォント名</label>
-                <select id="font-name-select"></select>
+        <header>
+            <div class="header-content">
+                <h1>Font Preview</h1>
+                <div class="version-info">v1.4.4</div>
+            </div>
+        </header>
 
-                <label for="font-number-select">番号</label>
-                <select id="font-number-select"></select>
-
-                <div class="normal-font-option">
+        <div class="control-panel">
+            <div class="font-controls">
+                <h2>フォント設定</h2>
+                <div class="font-selections">
+                    <div class="control-group">
+                        <label for="font-name-select">フォント名:</label>
+                        <select id="font-name-select"></select>
+                    </div>
+                    <div class="control-group">
+                        <label for="font-number-select">フォント番号:</label>
+                        <select id="font-number-select"></select>
+                    </div>
+                    <div class="control-group">
+                        <button id="refresh-fonts" class="action-button">フォントリストを更新</button>
+                        <div id="loading-status" class="status-message">フォントリストを読み込み中...</div>
+                    </div>
+                </div>
+                <div class="control-group checkbox-group">
                     <input type="checkbox" id="use-normal-font">
-                    <label for="use-normal-font">通常のフォントで表示</label>
+                    <label for="use-normal-font">通常フォントを使用</label>
                 </div>
             </div>
 
@@ -72,6 +115,22 @@
     </div>
 
     <script src="script.js"></script>
+    <script>
+        // フォント更新ボタンのイベントリスナーを追加
+        document.addEventListener('DOMContentLoaded', () => {
+            const refreshButton = document.getElementById('refresh-fonts');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', () => {
+                    if (typeof refreshFonts === 'function') {
+                        refreshFonts();
+                    } else {
+                        console.error('refreshFonts関数が定義されていません');
+                        alert('フォントリストの更新機能を利用できません');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>
