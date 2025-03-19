@@ -238,16 +238,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         continue;
                     }
 
-                    // フォント用のユニークIDを生成
-                    const fontId = `font-${Math.random().toString(36).substring(2, 10)}`;
-
-                    fonts.push({
-                        id: fontId,
+                    // オリジナルのフォント名を保持
+                    const fontObj = {
                         originalName: name,
                         displayName,
                         data: fontData,
                         mimeType: fontMimeType
-                    });
+                    };
+
+                    fonts.push(fontObj);
 
                 } catch (err) {
                     console.error(`フォント「${fontInfo.name}」の読み込みエラー:`, err);
@@ -257,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // フォントをページに追加
             if (fonts.length > 0) {
                 console.log(`${fonts.length}個のフォントをページに追加します`);
-                addFontsToPage(fonts);
+                await addFontsToPage(fonts);
             } else {
                 console.warn('サーバーからフォントを取得できませんでした');
             }
@@ -589,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ページにフォントを追加
-    function addFontsToPage(fonts) {
+    async function addFontsToPage(fonts) {
         if (!fonts || fonts.length === 0) return;
 
         // 既存のスタイル要素を削除
@@ -607,6 +606,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // 既存のBlobURLを解放
+        if (window.fontBlobUrls) {
+            window.fontBlobUrls.forEach(url => {
+                URL.revokeObjectURL(url);
+            });
+        }
+        window.fontBlobUrls = [];
+        window.fontNameToId = window.fontNameToId || new Map();
+
         console.log(`${fonts.length}個のフォントを登録します`);
 
         // スタイル要素を作成
@@ -617,33 +625,44 @@ document.addEventListener('DOMContentLoaded', () => {
         let cssRules = '';
 
         // フォントデータを処理
-        fonts.forEach(font => {
+        fonts.forEach((font, index) => {
             if (!font.data) {
                 console.warn(`フォント「${font.originalName}」にデータがありません`);
                 return;
             }
 
             try {
-                // ArrayBufferをBase64に変換
-                const base64Font = arrayBufferToBase64(font.data);
+                // ArrayBufferからBlobを作成
+                const blob = new Blob([font.data], { type: font.mimeType });
 
-                // データURLを生成
-                const dataUrl = `data:${font.mimeType};base64,${base64Font}`;
+                // BlobからURLを生成
+                const blobUrl = URL.createObjectURL(blob);
+                window.fontBlobUrls.push(blobUrl);
 
-                // フォントファミリー名
-                const fontFamilyName = font.id;
+                // フォントファミリー名 - 単純なものにする
+                const fontFamilyName = `custom-font-${index + 1}`;
+
+                // 元のフォント名とIDをマッピング
+                font.id = fontFamilyName;
+                window.fontNameToId.set(font.originalName, fontFamilyName);
+
+                // フォント番号がある場合は、フォント名_番号の形式も登録
+                const parsed = parseFontName(font.originalName);
+                if (parsed) {
+                    window.fontNameToId.set(`${parsed.name}_${parsed.number}`, fontFamilyName);
+                }
 
                 // @font-face ルールを追加
                 cssRules += `
 @font-face {
   font-family: '${fontFamilyName}';
-  src: url('${dataUrl}') format('${getFormatFromMimeType(font.mimeType)}');
+  src: url('${blobUrl}') format('${getFormatFromMimeType(font.mimeType)}');
   font-weight: normal;
   font-style: normal;
-  font-display: swap;
+  font-display: block;
 }
 `;
-                console.log(`フォント「${font.originalName}」のCSSルールを追加しました (ID: ${fontFamilyName})`);
+                console.log(`フォント「${font.originalName}」をBlobURLで登録: ${fontFamilyName}`);
             } catch (error) {
                 console.error(`フォント「${font.originalName}」の処理エラー:`, error);
             }
@@ -657,19 +676,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log('フォントスタイルをページに追加しました');
 
-        // プレビューを更新
-        setTimeout(updatePreview, 100);
-    }
-
-    // ArrayBufferをBase64に変換する関数
-    function arrayBufferToBase64(buffer) {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
+        // フォントのロードを待つ
+        try {
+            await document.fonts.ready;
+            console.log('すべてのフォントの読み込みが完了しました');
+        } catch (e) {
+            console.warn('フォントの読み込み待機中にエラーが発生しました:', e);
         }
-        return window.btoa(binary);
+
+        // プレビューを更新
+        updatePreview();
+
+        return fonts;
     }
 
     // MIMEタイプからフォーマット文字列を取得
@@ -911,13 +929,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // フルネームの生成（元のフォント名フォーマットを保持）
             const originalFullName = `${selectedName}_${selectedNumber}`;
 
-            // 対応するフォントIDを探す
-            const foundFont = findFontByNameAndNumber(selectedName, selectedNumber);
+            // マッピングからフォントIDを取得
+            const fontId = window.fontNameToId ?
+                window.fontNameToId.get(originalFullName) : null;
 
-            if (foundFont) {
-                fontFamily = `'${foundFont.id}', sans-serif`;
+            if (fontId) {
+                fontFamily = `'${fontId}', sans-serif`;
                 fontDisplayName = originalFullName;
-                console.log(`カスタムフォント使用: ${originalFullName} -> ID: ${foundFont.id}`);
+                console.log(`カスタムフォント使用: ${originalFullName} -> ID: ${fontId}`);
             } else {
                 // 見つからない場合はデフォルトフォント
                 fontFamily = 'sans-serif';
@@ -925,13 +944,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn(`フォント「${originalFullName}」が見つかりません`);
             }
         } else if (selectedName) {
-            // 番号なしの場合、一致するフォントを探す
-            const foundFont = findFontByNameOnly(selectedName);
+            // マッピングからフォントIDを取得
+            const fontId = window.fontNameToId ?
+                window.fontNameToId.get(selectedName) : null;
 
-            if (foundFont) {
-                fontFamily = `'${foundFont.id}', sans-serif`;
+            if (fontId) {
+                fontFamily = `'${fontId}', sans-serif`;
                 fontDisplayName = selectedName;
-                console.log(`番号なしカスタムフォント使用: ${selectedName} -> ID: ${foundFont.id}`);
+                console.log(`番号なしカスタムフォント使用: ${selectedName} -> ID: ${fontId}`);
             } else {
                 // 見つからない場合はデフォルトフォント
                 fontFamily = 'sans-serif';
@@ -943,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fontDisplayName = 'デフォルト';
         }
 
-        // フォントが読み込まれているか確認
+        // フォントスタイルを適用
         applyStyles(fontFamily, fontDisplayName);
 
         // スタイルを適用する内部関数
