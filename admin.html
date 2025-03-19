@@ -112,6 +112,11 @@
             <label for="netlify-hook">Netlifyビルドフック:</label>
             <input type="text" id="netlify-hook" placeholder="https://api.netlify.com/build_hooks/xxxx">
         </div>
+        <div class="config-item">
+            <label for="repo-branch">使用するブランチ:</label>
+            <input type="text" id="repo-branch" placeholder="main">
+            <p class="help-text">指定がない場合はデフォルトブランチを使用します</p>
+        </div>
     </div>
 
     <div class="action-buttons">
@@ -139,6 +144,7 @@
         let REPO_NAME = 'font-preview-share';
         let FONTS_PATH = 'fonts/';
         let NETLIFY_BUILD_HOOK = '';
+        let USER_BRANCH = '';  // ユーザーが指定したブランチ
 
         // 設定フィールドからの値を取得する関数
         function updateConfig() {
@@ -146,11 +152,13 @@
             REPO_NAME = document.getElementById('repo-name').value.trim() || 'font-preview-share';
             GITHUB_TOKEN = document.getElementById('github-token').value.trim();
             NETLIFY_BUILD_HOOK = document.getElementById('netlify-hook').value.trim();
+            USER_BRANCH = document.getElementById('repo-branch').value.trim();
 
             // ローカルストレージに保存（トークン以外）
             localStorage.setItem('fontPreview_repoOwner', REPO_OWNER);
             localStorage.setItem('fontPreview_repoName', REPO_NAME);
             localStorage.setItem('fontPreview_netlifyHook', NETLIFY_BUILD_HOOK);
+            localStorage.setItem('fontPreview_repoBranch', USER_BRANCH);
         }
 
         // 保存された設定を読み込む
@@ -158,10 +166,12 @@
             const savedOwner = localStorage.getItem('fontPreview_repoOwner');
             const savedRepo = localStorage.getItem('fontPreview_repoName');
             const savedHook = localStorage.getItem('fontPreview_netlifyHook');
+            const savedBranch = localStorage.getItem('fontPreview_repoBranch');
 
             if (savedOwner) document.getElementById('repo-owner').value = savedOwner;
             if (savedRepo) document.getElementById('repo-name').value = savedRepo;
             if (savedHook) document.getElementById('netlify-hook').value = savedHook;
+            if (savedBranch) document.getElementById('repo-branch').value = savedBranch;
 
             // 設定を更新
             updateConfig();
@@ -175,6 +185,7 @@
         document.getElementById('repo-name').addEventListener('change', updateConfig);
         document.getElementById('github-token').addEventListener('change', updateConfig);
         document.getElementById('netlify-hook').addEventListener('change', updateConfig);
+        document.getElementById('repo-branch').addEventListener('change', updateConfig);
 
         // リポジトリ確認機能
         document.getElementById('checkRepo').addEventListener('click', async () => {
@@ -202,32 +213,66 @@
 
                 const repoInfo = await repoInfoResponse.json();
                 const defaultBranch = repoInfo.default_branch || 'main';
+
+                // ユーザーが指定したブランチがある場合はそれを使用、なければデフォルトブランチ
+                let currentBranch = USER_BRANCH || defaultBranch;
+
                 statusEl.textContent += `\nリポジトリのデフォルトブランチ: ${defaultBranch}`;
+                if (USER_BRANCH) {
+                    statusEl.textContent += `\n指定されたブランチを使用: ${USER_BRANCH}`;
+                }
 
-                // 使用するブランチ
-                let currentBranch = defaultBranch;
-
-                // SHAを取得する必要はないが、参考として残す
+                // ブランチの存在を確認
                 try {
-                    const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
+                    const branchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
                         headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                     });
 
-                    if (!shaResponse.ok) {
-                        statusEl.textContent += `\n注意: ${currentBranch}ブランチが見つかりません。`;
+                    if (!branchResponse.ok) {
+                        statusEl.textContent += `\n警告: ${currentBranch}ブランチが見つかりません。`;
 
-                        // 代替ブランチを試す
-                        const altBranch = currentBranch === 'main' ? 'master' : 'main';
-                        const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
-                            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                        });
+                        if (USER_BRANCH) {
+                            // ユーザー指定ブランチが見つからない場合はデフォルトブランチを試す
+                            statusEl.textContent += `\nデフォルトブランチ(${defaultBranch})を試行します...`;
+                            currentBranch = defaultBranch;
 
-                        if (altResponse.ok) {
-                            currentBranch = altBranch;
-                            statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                            // デフォルトブランチの存在を確認
+                            const defaultBranchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${defaultBranch}`, {
+                                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                            });
+
+                            if (!defaultBranchResponse.ok) {
+                                // デフォルトブランチも見つからない場合は代替ブランチを試す
+                                const altBranch = defaultBranch === 'main' ? 'master' : 'main';
+                                const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                                });
+
+                                if (altResponse.ok) {
+                                    currentBranch = altBranch;
+                                    statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                                } else {
+                                    statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                                }
+                            } else {
+                                statusEl.textContent += `\n${defaultBranch}ブランチを使用します。`;
+                            }
                         } else {
-                            statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                            // デフォルトブランチが見つからない場合は代替ブランチを試す
+                            const altBranch = defaultBranch === 'main' ? 'master' : 'main';
+                            const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                            });
+
+                            if (altResponse.ok) {
+                                currentBranch = altBranch;
+                                statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                            } else {
+                                statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                            }
                         }
+                    } else {
+                        statusEl.textContent += `\n${currentBranch}ブランチを使用します。`;
                     }
                 } catch (branchError) {
                     console.error('ブランチ情報取得エラー:', branchError);
@@ -339,32 +384,66 @@
 
                 const repoInfo = await repoInfoResponse.json();
                 const defaultBranch = repoInfo.default_branch || 'main';
+
+                // ユーザーが指定したブランチがある場合はそれを使用、なければデフォルトブランチ
+                let currentBranch = USER_BRANCH || defaultBranch;
+
                 statusEl.textContent += `\nリポジトリのデフォルトブランチ: ${defaultBranch}`;
+                if (USER_BRANCH) {
+                    statusEl.textContent += `\n指定されたブランチを使用: ${USER_BRANCH}`;
+                }
 
-                // 使用するブランチ
-                let currentBranch = defaultBranch;
-
-                // SHAを取得する必要はないが、参考として残す
+                // ブランチの存在を確認
                 try {
-                    const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
+                    const branchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
                         headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                     });
 
-                    if (!shaResponse.ok) {
-                        statusEl.textContent += `\n注意: ${currentBranch}ブランチが見つかりません。`;
+                    if (!branchResponse.ok) {
+                        statusEl.textContent += `\n警告: ${currentBranch}ブランチが見つかりません。`;
 
-                        // 代替ブランチを試す
-                        const altBranch = currentBranch === 'main' ? 'master' : 'main';
-                        const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
-                            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                        });
+                        if (USER_BRANCH) {
+                            // ユーザー指定ブランチが見つからない場合はデフォルトブランチを試す
+                            statusEl.textContent += `\nデフォルトブランチ(${defaultBranch})を試行します...`;
+                            currentBranch = defaultBranch;
 
-                        if (altResponse.ok) {
-                            currentBranch = altBranch;
-                            statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                            // デフォルトブランチの存在を確認
+                            const defaultBranchResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${defaultBranch}`, {
+                                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                            });
+
+                            if (!defaultBranchResponse.ok) {
+                                // デフォルトブランチも見つからない場合は代替ブランチを試す
+                                const altBranch = defaultBranch === 'main' ? 'master' : 'main';
+                                const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                                });
+
+                                if (altResponse.ok) {
+                                    currentBranch = altBranch;
+                                    statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                                } else {
+                                    statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                                }
+                            } else {
+                                statusEl.textContent += `\n${defaultBranch}ブランチを使用します。`;
+                            }
                         } else {
-                            statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                            // デフォルトブランチが見つからない場合は代替ブランチを試す
+                            const altBranch = defaultBranch === 'main' ? 'master' : 'main';
+                            const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                            });
+
+                            if (altResponse.ok) {
+                                currentBranch = altBranch;
+                                statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                            } else {
+                                statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                            }
                         }
+                    } else {
+                        statusEl.textContent += `\n${currentBranch}ブランチを使用します。`;
                     }
                 } catch (branchError) {
                     console.error('ブランチ情報取得エラー:', branchError);
