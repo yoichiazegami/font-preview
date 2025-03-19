@@ -633,10 +633,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 try {
-                    // FontFaceオブジェクトを作成
+                    // ArrayBufferをBlobに変換してフォーマットを明示
+                    const fontBlob = new Blob([font.data], { type: font.mimeType || 'font/woff2' });
+                    // BlobからURLを作成
+                    const fontUrl = URL.createObjectURL(fontBlob);
+                    window.fontBlobUrls.push(fontUrl);
+
+                    // FontFaceオブジェクトを作成（Blobの参照URLを使用）
                     const fontFace = new FontFace(
                         fontFamilyName,
-                        font.data,
+                        `url(${fontUrl})`,
                         {
                             style: 'normal',
                             weight: '400',
