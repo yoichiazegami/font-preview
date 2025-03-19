@@ -217,33 +217,36 @@ document.addEventListener('DOMContentLoaded', () => {
                         continue;
                     }
 
-                    // レスポンスヘッダーの確認
-                    console.log(`フォント「${fontInfo.name}」のレスポンスヘッダー:`,
-                        Array.from(response.headers.entries())
-                            .reduce((obj, [key, val]) => ({ ...obj, [key]: val }), {})
-                    );
-
                     const fontData = await response.arrayBuffer();
                     console.log(`フォント「${fontInfo.name}」を取得しました (${fontData.byteLength} bytes)`);
 
                     const displayName = fontInfo.name;
                     const name = fontInfo.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
 
-                    // 特殊なテストフォントの場合、フォント名を完全に置き換える
-                    const isTestFont = /^TEST[-_]?\d+/i.test(name);
-                    // CSS識別子として安全なフォント名に変換 - 問題のあるフォントには別名を割り当て
-                    const cssName = isTestFont ?
-                        `custom-test-font-${name.replace(/\D/g, '')}` :
-                        `font-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    // フォントのMIMEタイプを判定
+                    let fontMimeType;
+                    if (fontInfo.name.endsWith('.woff2')) {
+                        fontMimeType = 'font/woff2';
+                    } else if (fontInfo.name.endsWith('.woff')) {
+                        fontMimeType = 'font/woff';
+                    } else if (fontInfo.name.endsWith('.ttf')) {
+                        fontMimeType = 'font/ttf';
+                    } else if (fontInfo.name.endsWith('.otf')) {
+                        fontMimeType = 'font/opentype';
+                    } else {
+                        console.warn(`未知のフォント形式: ${fontInfo.name}`);
+                        continue;
+                    }
 
-                    console.log(`フォント名「${name}」をCSS識別子「${cssName}」に変換しました${isTestFont ? ' (テストフォント特別処理)' : ''}`);
+                    // フォント用のユニークIDを生成
+                    const fontId = `font-${Math.random().toString(36).substring(2, 10)}`;
 
                     fonts.push({
-                        name: cssName,
+                        id: fontId,
                         originalName: name,
                         displayName,
                         data: fontData,
-                        isTestFont
+                        mimeType: fontMimeType
                     });
 
                 } catch (err) {
@@ -606,62 +609,78 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log(`${fonts.length}個のフォントを登録します`);
 
+        // スタイル要素を作成
+        const styleElement = document.createElement('style');
+        styleElement.className = 'dynamic-font-faces';
+
+        // CSS @font-face ルールを構築
+        let cssRules = '';
+
         // フォントデータを処理
         fonts.forEach(font => {
             if (!font.data) {
-                console.warn(`フォント「${font.name}」にデータがありません`);
+                console.warn(`フォント「${font.originalName}」にデータがありません`);
                 return;
             }
 
             try {
-                // 適切なMIMEタイプを設定
-                let format;
-                if (font.displayName.endsWith('.woff2')) {
-                    format = 'woff2';
-                } else if (font.displayName.endsWith('.woff')) {
-                    format = 'woff';
-                } else if (font.displayName.endsWith('.ttf')) {
-                    format = 'truetype';
-                } else if (font.displayName.endsWith('.otf')) {
-                    format = 'opentype';
-                } else {
-                    console.warn(`不明なフォント形式: ${font.displayName}`);
-                    return;
-                }
+                // ArrayBufferをBase64に変換
+                const base64Font = arrayBufferToBase64(font.data);
 
-                // ArrayBufferをBlobに変換
-                const fontBlob = new Blob([font.data]);
+                // データURLを生成
+                const dataUrl = `data:${font.mimeType};base64,${base64Font}`;
 
-                // すでに安全なフォント名がnameに入っているので、そのまま使用
-                const fontFaceName = font.name;
-                console.log(`FontFace登録: ${fontFaceName}${font.isTestFont ? ' (テストフォント特別処理)' : ''}`);
+                // フォントファミリー名
+                const fontFamilyName = font.id;
 
-                // FontFaceを使用して直接フォントを登録
-                const fontFace = new FontFace(
-                    fontFaceName,
-                    fontBlob,
-                    {
-                        style: 'normal',
-                        weight: 'normal',
-                        display: 'swap'
-                    }
-                );
-
-                // フォント読み込み完了時の処理
-                fontFace.load().then(loadedFace => {
-                    // フォントをドキュメントに追加
-                    document.fonts.add(loadedFace);
-                    console.log(`フォント追加完了: ${fontFaceName} (${format}形式)`);
-
-                    // プレビューを更新（非同期で読み込まれるため）
-                    updatePreview();
-                }).catch(err => {
-                    console.error(`フォント「${fontFaceName}」の読み込みエラー:`, err);
-                });
+                // @font-face ルールを追加
+                cssRules += `
+@font-face {
+  font-family: '${fontFamilyName}';
+  src: url('${dataUrl}') format('${getFormatFromMimeType(font.mimeType)}');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+`;
+                console.log(`フォント「${font.originalName}」のCSSルールを追加しました (ID: ${fontFamilyName})`);
             } catch (error) {
-                console.error(`フォント「${font.name}」の処理エラー:`, error);
+                console.error(`フォント「${font.originalName}」の処理エラー:`, error);
             }
         });
+
+        // CSSルールをスタイル要素に追加
+        styleElement.textContent = cssRules;
+
+        // スタイル要素をドキュメントに追加
+        document.head.appendChild(styleElement);
+
+        console.log('フォントスタイルをページに追加しました');
+
+        // プレビューを更新
+        setTimeout(updatePreview, 100);
+    }
+
+    // ArrayBufferをBase64に変換する関数
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
+    // MIMEタイプからフォーマット文字列を取得
+    function getFormatFromMimeType(mimeType) {
+        switch (mimeType) {
+            case 'font/woff2': return 'woff2';
+            case 'font/woff': return 'woff';
+            case 'font/ttf': return 'truetype';
+            case 'font/opentype': return 'opentype';
+            default: return 'woff2';
+        }
     }
 
     // fontsフォルダ内のフォントファイルを検出する関数
@@ -892,84 +911,40 @@ document.addEventListener('DOMContentLoaded', () => {
             // フルネームの生成（元のフォント名フォーマットを保持）
             const originalFullName = `${selectedName}_${selectedNumber}`;
 
-            // テストフォントかどうか判定
-            const isTestFont = /^TEST$/i.test(selectedName);
+            // 対応するフォントIDを探す
+            const foundFont = findFontByNameAndNumber(selectedName, selectedNumber);
 
-            // 適切なフォント名を生成
-            let cssCompatibleName;
-            if (isTestFont) {
-                cssCompatibleName = `custom-test-font-${selectedNumber}`;
+            if (foundFont) {
+                fontFamily = `'${foundFont.id}', sans-serif`;
+                fontDisplayName = originalFullName;
+                console.log(`カスタムフォント使用: ${originalFullName} -> ID: ${foundFont.id}`);
             } else {
-                cssCompatibleName = `font-${originalFullName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                // 見つからない場合はデフォルトフォント
+                fontFamily = 'sans-serif';
+                fontDisplayName = originalFullName + ' (見つかりません)';
+                console.warn(`フォント「${originalFullName}」が見つかりません`);
             }
-
-            // 引用符を削除してフォントファミリー名を設定
-            fontFamily = `${cssCompatibleName}, sans-serif`;
-            fontDisplayName = originalFullName;
-            console.log("カスタムフォント使用:", originalFullName, "->", cssCompatibleName);
         } else if (selectedName) {
-            // テストフォントかどうか判定
-            const isTestFont = /^TEST$/i.test(selectedName);
+            // 番号なしの場合、一致するフォントを探す
+            const foundFont = findFontByNameOnly(selectedName);
 
-            // 適切なフォント名を生成
-            let cssCompatibleName;
-            if (isTestFont) {
-                cssCompatibleName = `custom-test-font`;
+            if (foundFont) {
+                fontFamily = `'${foundFont.id}', sans-serif`;
+                fontDisplayName = selectedName;
+                console.log(`番号なしカスタムフォント使用: ${selectedName} -> ID: ${foundFont.id}`);
             } else {
-                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                // 見つからない場合はデフォルトフォント
+                fontFamily = 'sans-serif';
+                fontDisplayName = selectedName + ' (見つかりません)';
+                console.warn(`フォント「${selectedName}」が見つかりません`);
             }
-
-            // 引用符を削除してフォントファミリー名を設定
-            fontFamily = `${cssCompatibleName}, sans-serif`;
-            fontDisplayName = selectedName;
-            console.log("番号なしカスタムフォント使用:", selectedName, "->", cssCompatibleName);
         } else {
             fontFamily = 'sans-serif';
             fontDisplayName = 'デフォルト';
         }
 
-        // フォントが読み込まれたか確認し、必要に応じて待機
-        if (!useNormalFont && selectedName) {
-            const fontToCheck = selectedNumber && !fontNumberSelect.disabled ?
-                `${selectedName}_${selectedNumber}` : selectedName;
-
-            // テストフォントかどうか判定
-            const isTestFont = /^TEST$/i.test(selectedName);
-
-            // 適切なフォント名を生成
-            let cssCompatibleName;
-            if (isTestFont && selectedNumber) {
-                cssCompatibleName = `custom-test-font-${selectedNumber}`;
-            } else if (isTestFont) {
-                cssCompatibleName = `custom-test-font`;
-            } else if (selectedNumber && !fontNumberSelect.disabled) {
-                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}-${selectedNumber}`;
-            } else {
-                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}`;
-            }
-
-            // フォントが読み込まれるのを待つ
-            document.fonts.ready.then(() => {
-                const fontLoaded = Array.from(document.fonts).some(font =>
-                    font.family.replace(/['\"]/g, '') === cssCompatibleName ||
-                    font.family === cssCompatibleName
-                );
-
-                if (fontLoaded) {
-                    console.log(`フォント「${fontToCheck}」は読み込まれています（CSS名: ${cssCompatibleName}）`);
-                } else {
-                    console.warn(`フォント「${fontToCheck}」はまだ読み込まれていません（CSS名: ${cssCompatibleName}）`);
-                    console.log('現在利用可能なフォント:',
-                        Array.from(document.fonts).map(f => f.family).join(', '));
-                }
-
-                // フォントがロードされていようがいまいが、スタイルを適用
-                applyStyles(fontFamily, fontDisplayName);
-            });
-        } else {
-            // 通常フォントの場合はすぐに適用
-            applyStyles(fontFamily, fontDisplayName);
-        }
+        // フォントが読み込まれているか確認
+        applyStyles(fontFamily, fontDisplayName);
 
         // スタイルを適用する内部関数
         function applyStyles(fontFam, displayName) {
@@ -1022,6 +997,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // 詳細設定の表示更新（文字方向）
             currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
         }
+    }
+
+    // 名前と番号でフォントを検索する関数
+    function findFontByNameAndNumber(name, number) {
+        // フォント名から_番号の形式を探す
+        return fontsInFolder.find(font => {
+            const parsed = parseFontName(font.originalName);
+            return parsed && parsed.name === name && parsed.number === number;
+        });
+    }
+
+    // 名前のみでフォントを検索する関数
+    function findFontByNameOnly(name) {
+        // 完全一致するフォント名を探す
+        return fontsInFolder.find(font => font.originalName === name);
     }
 
     // 初期化時にIndexedDBを開く
