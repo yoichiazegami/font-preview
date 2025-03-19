@@ -205,3 +205,132 @@ button:hover {
         margin-top: 4px;
     }
 }
+
+/* 管理者セクションのスタイル */
+.admin-section {
+    margin-bottom: 15px;
+}
+
+.admin-toggle {
+    width: 100%;
+    padding: 8px;
+    background-color: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.admin-toggle:hover {
+    background-color: #1a252f;
+}
+
+.admin-panel {
+    padding: 15px;
+    background-color: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.admin-panel.hidden {
+    display: none;
+}
+
+.admin-panel h3 {
+    display: block;
+    margin-bottom: 15px;
+    font-size: 16px;
+    color: #333;
+}
+
+.admin-panel h4 {
+    display: block;
+    margin: 10px 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.admin-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.font-upload {
+    flex: 1;
+    min-width: 250px;
+}
+
+.font-list {
+    flex: 1;
+    min-width: 250px;
+}
+
+input[type="file"] {
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    position: absolute;
+    z-index: -1;
+}
+
+.upload-button {
+    display: inline-block;
+    padding: 8px 12px;
+    background-color: #3498db;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.upload-button:hover {
+    background-color: #2980b9;
+}
+
+.upload-note {
+    margin-top: 5px;
+    font-size: 12px;
+    color: #777;
+}
+
+#upload-status {
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+#uploaded-fonts {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: white;
+}
+
+#uploaded-fonts li {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+#uploaded-fonts li:last-child {
+    border-bottom: none;
+}
+
+.refresh-button {
+    margin-top: 15px;
+    background-color: #27ae60;
+}
+
+.refresh-button:hover {
+    background-color: #219955;
+}

@@ -15,11 +15,193 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentLetterSpacingDisplay = document.getElementById('current-letter-spacing');
     const currentLineHeightDisplay = document.getElementById('current-line-height');
 
+    // 管理者機能の要素
+    const adminToggle = document.getElementById('admin-toggle');
+    const adminPanel = document.getElementById('admin-panel');
+    const fontUpload = document.getElementById('font-upload');
+    const uploadStatus = document.getElementById('upload-status');
+    const uploadedFontsList = document.getElementById('uploaded-fonts');
+    const refreshFontsButton = document.getElementById('refresh-fonts');
+
     // 文字方向と文字揃え要素
     const writingModeSelect = document.getElementById('writing-mode');
     const textAlignSelect = document.getElementById('text-align');
     const currentWritingModeDisplay = document.getElementById('current-writing-mode');
     const currentTextAlignDisplay = document.getElementById('current-text-align');
+
+    // IndexedDBの設定
+    const DB_NAME = 'fontsDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'fonts';
+    let db;
+
+    // IndexedDBを初期化
+    function initIndexedDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = (event) => {
+                console.error('IndexedDB error:', event.target.error);
+                reject('IndexedDBが使用できません。ブラウザの設定を確認してください。');
+            };
+
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                console.log('IndexedDB接続成功');
+                resolve(db);
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+                    console.log('フォント保存用のObjectStore作成完了');
+                }
+            };
+        });
+    }
+
+    // 管理者パネルの表示切り替え
+    adminToggle.addEventListener('click', () => {
+        adminPanel.classList.toggle('hidden');
+        if (!adminPanel.classList.contains('hidden')) {
+            loadUploadedFontsToList();
+        }
+    });
+
+    // フォントファイルをアップロード
+    fontUpload.addEventListener('change', async (event) => {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+
+        uploadStatus.textContent = `${files.length}個のファイルを処理中...`;
+        uploadStatus.style.color = '#3498db';
+
+        try {
+            await initIndexedDB();
+            let successCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                // フォントファイルかチェック
+                if (!file.name.match(/\.(woff2|woff|ttf|otf)$/i)) {
+                    continue;
+                }
+
+                const reader = new FileReader();
+
+                await new Promise((resolve, reject) => {
+                    reader.onload = async (e) => {
+                        try {
+                            const fontData = e.target.result;
+                            const fontName = file.name;
+
+                            // フォントデータを保存
+                            const transaction = db.transaction([STORE_NAME], 'readwrite');
+                            const store = transaction.objectStore(STORE_NAME);
+
+                            await new Promise((transResolve, transReject) => {
+                                const request = store.put({
+                                    name: fontName,
+                                    data: fontData,
+                                    dateAdded: new Date().toISOString()
+                                });
+
+                                request.onsuccess = () => {
+                                    successCount++;
+                                    transResolve();
+                                };
+
+                                request.onerror = (e) => {
+                                    console.error('フォント保存エラー:', e.target.error);
+                                    transReject(e.target.error);
+                                };
+                            });
+
+                            resolve();
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            uploadStatus.textContent = `${successCount}個のフォントを保存しました。`;
+            uploadStatus.style.color = '#27ae60';
+
+            // アップロードリスト更新
+            loadUploadedFontsToList();
+
+            // フォントリストを更新してプレビューに反映
+            await loadFontsFromIndexedDB();
+            createFontNameOptions();
+            createFontNumberOptions();
+            updatePreview();
+
+        } catch (error) {
+            console.error('フォントアップロードエラー:', error);
+            uploadStatus.textContent = `エラー: ${error.message || error}`;
+            uploadStatus.style.color = '#e74c3c';
+        }
+
+        // フォーム初期化
+        fontUpload.value = '';
+    });
+
+    // アップロードされたフォントをリストに表示
+    async function loadUploadedFontsToList() {
+        try {
+            await initIndexedDB();
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                const fonts = request.result;
+                uploadedFontsList.innerHTML = '';
+
+                if (fonts.length === 0) {
+                    const li = document.createElement('li');
+                    li.textContent = 'アップロードされたフォントはありません';
+                    uploadedFontsList.appendChild(li);
+                    return;
+                }
+
+                fonts.forEach(font => {
+                    const li = document.createElement('li');
+                    li.textContent = font.name;
+                    uploadedFontsList.appendChild(li);
+                });
+            };
+
+            request.onerror = (e) => {
+                console.error('フォントリスト取得エラー:', e.target.error);
+            };
+        } catch (error) {
+            console.error('フォントリスト更新エラー:', error);
+        }
+    }
+
+    // フォントリストの更新ボタン
+    refreshFontsButton.addEventListener('click', async () => {
+        try {
+            await loadFontsFromIndexedDB();
+            createFontNameOptions();
+            createFontNumberOptions();
+            updatePreview();
+
+            refreshFontsButton.textContent = 'フォントリストを更新しました！';
+            setTimeout(() => {
+                refreshFontsButton.textContent = 'フォントリストを更新';
+            }, 2000);
+        } catch (error) {
+            console.error('フォントリスト更新エラー:', error);
+        }
+    });
 
     // 初期値の設定
     fontSizeInput.value = 60;
@@ -107,66 +289,112 @@ document.addEventListener('DOMContentLoaded', () => {
         selectElement.appendChild(option);
     }
 
-    // fontsフォルダ内のフォントファイルを検出する関数
-    async function detectFontsInFolder() {
+    // IndexedDBからフォントを読み込む
+    async function loadFontsFromIndexedDB() {
         try {
-            // ファイル一覧を取得するためのAPIリクエスト
-            const response = await fetch('/api/list-fonts');
-            if (!response.ok) {
-                throw new Error('フォントファイル一覧の取得に失敗しました');
-            }
+            await initIndexedDB();
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
 
-            const files = await response.json();
-            return files.map(file => {
-                const name = file.replace(/\.(woff2|woff|ttf|otf)$/, '');
-                return {
-                    name: name,
-                    displayName: file
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    const indexedDBFonts = request.result.map(font => {
+                        // フォント名から拡張子を除去して内部名とする
+                        const displayName = font.name;
+                        const name = font.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+                        return { name, displayName, data: font.data };
+                    });
+
+                    console.log(`IndexedDBから${indexedDBFonts.length}個のフォントを読み込みました`);
+                    addFontsToPage(indexedDBFonts);
+                    resolve(indexedDBFonts);
+                };
+
+                request.onerror = (e) => {
+                    console.error('フォント読み込みエラー:', e.target.error);
+                    reject(e.target.error);
                 };
             });
         } catch (error) {
-            console.error('フォント検出エラー:', error);
-            // エラー時のフォールバックとして固定リストを使用
-            return [
-                { name: 'YAMADA_01', displayName: 'YAMADA_01.woff2' },
-                { name: 'YAMADA_02', displayName: 'YAMADA_02.woff2' },
-                { name: 'SATO_01', displayName: 'SATO_01.woff2' },
-                { name: 'SATO_02', displayName: 'SATO_02.woff2' },
-                { name: 'font_6', displayName: 'font_6.woff2' },
-                { name: 'my_handwritten_font_446737', displayName: 'my_handwritten_font_446737.woff2' },
-                { name: 'my_handwritten_font80', displayName: 'my_handwritten_font80.woff2' },
-                { name: 'my_handwritten_font76', displayName: 'my_handwritten_font76.woff2' }
-            ];
+            console.error('IndexedDBフォント読み込みエラー:', error);
+            return [];
         }
     }
 
-    // @font-face定義を動的に生成する関数
-    function createFontFaceDefinitions(fonts) {
-        // 既存の定義を削除（動的に追加したものだけ）
-        document.querySelectorAll('style.dynamic-font-faces').forEach(style => style.remove());
+    // ページにフォントを追加
+    function addFontsToPage(fonts) {
+        if (!fonts || fonts.length === 0) return;
 
-        // 新しいstyle要素を作成
+        // 既存のスタイル要素を削除
+        document.querySelectorAll('style.dynamic-font-faces').forEach(el => el.remove());
+
+        // 新しいスタイル要素を作成
         const style = document.createElement('style');
         style.className = 'dynamic-font-faces';
 
-        // @font-face定義を生成
-        let fontFaceCSS = '';
+        // 各フォントデータをBlobに変換してURLを作成
         fonts.forEach(font => {
-            const fontExt = font.displayName.split('.').pop();
-            fontFaceCSS += `
+            if (!font.data) return;
+
+            // 適切なMIMEタイプを設定
+            let mimeType;
+            if (font.displayName.endsWith('.woff2')) {
+                mimeType = 'font/woff2';
+            } else if (font.displayName.endsWith('.woff')) {
+                mimeType = 'font/woff';
+            } else if (font.displayName.endsWith('.ttf')) {
+                mimeType = 'font/ttf';
+            } else if (font.displayName.endsWith('.otf')) {
+                mimeType = 'font/otf';
+            } else {
+                return;
+            }
+
+            // Blobを作成
+            const blob = new Blob([font.data], { type: mimeType });
+            const fontUrl = URL.createObjectURL(blob);
+
+            // @font-face定義を追加
+            style.textContent += `
 @font-face {
     font-family: '${font.name}';
-    src: url('fonts/${font.displayName}') format('${fontExt === 'woff2' ? 'woff2' :
-                    fontExt === 'woff' ? 'woff' :
-                        fontExt === 'ttf' ? 'truetype' :
-                            fontExt === 'otf' ? 'opentype' : 'woff2'}');
+    src: url('${fontUrl}') format('${mimeType.split('/')[1]}');
     font-weight: normal;
     font-style: normal;
 }`;
         });
 
-        style.textContent = fontFaceCSS;
+        // スタイル要素をドキュメントに追加
         document.head.appendChild(style);
+    }
+
+    // fontsフォルダ内のフォントファイルを検出する関数
+    async function detectFontsInFolder() {
+        try {
+            // IndexedDBからフォントを読み込む
+            const dbFonts = await loadFontsFromIndexedDB();
+            if (dbFonts && dbFonts.length > 0) {
+                return dbFonts;
+            }
+
+            // IndexedDBにフォントがない場合はデフォルトフォントを使用
+            console.log('デフォルトフォントを使用します');
+            return [
+                { name: 'AZEGAMI_01', displayName: 'AZEGAMI_01.woff2' },
+                { name: 'AZEGAMI_02', displayName: 'AZEGAMI_02.woff2' },
+                { name: 'TEST_03', displayName: 'TEST_03.woff2' }
+            ];
+        } catch (error) {
+            console.error('フォント検出エラー:', error);
+            return [];
+        }
+    }
+
+    // @font-face定義を動的に生成する関数
+    function createFontFaceDefinitions(fonts) {
+        // ここではIndexedDBから読み込んだフォントを使用するため、何もしない
+        // IndexedDBからのフォントは既にaddFontsToPage()で処理されている
     }
 
     // フォントファイル一覧を取得して処理を開始
@@ -174,9 +402,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     detectFontsInFolder().then(fonts => {
         fontsInFolder = fonts;
-
-        // @font-face定義を生成
-        createFontFaceDefinitions(fontsInFolder);
 
         // フォント名・番号オプションを生成
         createFontNameOptions();
@@ -227,6 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const parsed = parseFontName(font.name);
             if (parsed) {
                 fontNames.add(parsed.name);
+            } else {
+                // パターンに一致しない場合は、フォント名全体を使用
+                fontNames.add(font.name);
             }
         });
 
@@ -257,17 +485,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fontNumberSelect.disabled = false;
-
         // 選択された名前に対応する番号を収集
         const numbers = new Set();
+        let hasNumbers = false;
+
         fontsInFolder.forEach(font => {
             const parsed = parseFontName(font.name);
             if (parsed && parsed.name === selectedName) {
                 numbers.add(parsed.number);
+                hasNumbers = true;
                 console.log("フォント番号を追加:", parsed.number);
             }
         });
+
+        // 番号が見つからない場合は、選択されたフォント名と一致するフォントを使用
+        if (!hasNumbers) {
+            fontNumberSelect.disabled = true;
+            return;
+        }
+
+        fontNumberSelect.disabled = false;
 
         // 番号を数値としてソートして追加
         Array.from(numbers)
@@ -321,11 +558,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // 通常のフォントを使用する場合
             fontFamily = 'Helvetica, Arial, sans-serif';
             console.log("通常フォント使用: Helvetica");
-        } else if (selectedName && selectedNumber) {
+        } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
             // フルネームの生成
             const fullFontName = `${selectedName}_${selectedNumber}`;
             fontFamily = `"${fullFontName}"`;
             console.log("カスタムフォント使用:", fullFontName);
+        } else if (selectedName) {
+            // 番号がない場合はフォント名のみを使用
+            fontFamily = `"${selectedName}"`;
+            console.log("番号なしカスタムフォント使用:", selectedName);
         } else {
             fontFamily = 'sans-serif';
         }
@@ -341,10 +582,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
             if (selectedTextAlign === 'left') {
                 previewText.classList.add('vertical-align-top');
+                previewText.style.textAlign = 'start';
             } else if (selectedTextAlign === 'center') {
                 previewText.classList.add('vertical-align-center');
+                previewText.style.textAlign = 'center';
             } else if (selectedTextAlign === 'right') {
                 previewText.classList.add('vertical-align-bottom');
+                previewText.style.textAlign = 'end';
             }
 
             // 表示名の変換
@@ -370,10 +614,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // 情報表示の更新
         if (useNormalFont) {
             currentFontDisplay.textContent = 'Helvetica';
+        } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
+            currentFontDisplay.textContent = `${selectedName}_${selectedNumber}`;
+        } else if (selectedName) {
+            currentFontDisplay.textContent = selectedName;
         } else {
-            currentFontDisplay.textContent = (selectedName && selectedNumber) ?
-                `${selectedName}_${selectedNumber}` : 'デフォルト';
+            currentFontDisplay.textContent = 'デフォルト';
         }
+
         currentSizeDisplay.textContent = `${selectedSize}px`;
         currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
         currentLineHeightDisplay.textContent = selectedLineHeight;
@@ -381,4 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 詳細設定の表示更新（文字方向）
         currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
     }
+
+    // 初期化時にIndexedDBを開く
+    initIndexedDB().catch(error => {
+        console.error('IndexedDB初期化エラー:', error);
+    });
 }); 

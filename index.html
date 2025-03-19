@@ -55,6 +55,27 @@
             </div>
         </div>
 
+        <!-- 管理者機能セクション -->
+        <div class="admin-section">
+            <button id="admin-toggle" class="admin-toggle">管理者機能</button>
+            <div id="admin-panel" class="admin-panel hidden">
+                <h3>フォントアップロード</h3>
+                <div class="admin-controls">
+                    <div class="font-upload">
+                        <input type="file" id="font-upload" accept=".woff2,.woff,.ttf,.otf" multiple>
+                        <label for="font-upload" class="upload-button">フォントファイルを選択</label>
+                        <p class="upload-note">複数のフォントを一度にアップロードできます</p>
+                        <div id="upload-status"></div>
+                    </div>
+                    <div class="font-list">
+                        <h4>アップロードされたフォント</h4>
+                        <ul id="uploaded-fonts"></ul>
+                    </div>
+                </div>
+                <button id="refresh-fonts" class="refresh-button">フォントリストを更新</button>
+            </div>
+        </div>
+
         <div class="preview-container">
             <div class="preview-header">
                 <div class="font-info">
