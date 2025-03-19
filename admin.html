@@ -38,6 +38,27 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        .config-section {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .config-item {
+            width: 45%;
+            margin: 10px;
+        }
+
+        .config-item label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .config-item input {
+            width: 100%;
+            padding: 5px;
+        }
     </style>
 </head>
 
@@ -52,15 +73,71 @@
         </div>
     </div>
 
-    <button id="deployButton" disabled>Netlifyにデプロイ</button>
+    <div class="config-section">
+        <div class="config-item">
+            <label for="repo-owner">GitHubユーザー名:</label>
+            <input type="text" id="repo-owner" placeholder="あなたのGitHubユーザー名">
+        </div>
+        <div class="config-item">
+            <label for="repo-name">リポジトリ名:</label>
+            <input type="text" id="repo-name" placeholder="font-preview-share">
+        </div>
+        <div class="config-item">
+            <label for="github-token">GitHubトークン:</label>
+            <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxxxxxx">
+        </div>
+        <div class="config-item">
+            <label for="netlify-hook">Netlifyビルドフック:</label>
+            <input type="text" id="netlify-hook" placeholder="https://api.netlify.com/build_hooks/xxxx">
+        </div>
+    </div>
+
+    <button id="deployButton" disabled>フォントをアップロード＆デプロイ</button>
     <div id="status"></div>
 
     <script>
         // GitHubトークンは実際には別の方法で保護する必要があります
-        const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN';
-        const REPO_OWNER = 'あなたのユーザー名';
-        const REPO_NAME = 'font-preview-share';
-        const FONTS_PATH = 'fonts/';
+        let GITHUB_TOKEN = '';
+        let REPO_OWNER = '';
+        let REPO_NAME = 'font-preview-share';
+        let FONTS_PATH = 'fonts/';
+        let NETLIFY_BUILD_HOOK = '';
+
+        // 設定フィールドからの値を取得する関数
+        function updateConfig() {
+            REPO_OWNER = document.getElementById('repo-owner').value.trim();
+            REPO_NAME = document.getElementById('repo-name').value.trim() || 'font-preview-share';
+            GITHUB_TOKEN = document.getElementById('github-token').value.trim();
+            NETLIFY_BUILD_HOOK = document.getElementById('netlify-hook').value.trim();
+
+            // ローカルストレージに保存（トークン以外）
+            localStorage.setItem('fontPreview_repoOwner', REPO_OWNER);
+            localStorage.setItem('fontPreview_repoName', REPO_NAME);
+            localStorage.setItem('fontPreview_netlifyHook', NETLIFY_BUILD_HOOK);
+        }
+
+        // 保存された設定を読み込む
+        function loadSavedConfig() {
+            const savedOwner = localStorage.getItem('fontPreview_repoOwner');
+            const savedRepo = localStorage.getItem('fontPreview_repoName');
+            const savedHook = localStorage.getItem('fontPreview_netlifyHook');
+
+            if (savedOwner) document.getElementById('repo-owner').value = savedOwner;
+            if (savedRepo) document.getElementById('repo-name').value = savedRepo;
+            if (savedHook) document.getElementById('netlify-hook').value = savedHook;
+
+            // 設定を更新
+            updateConfig();
+        }
+
+        // ページ読み込み時に保存された設定を適用
+        loadSavedConfig();
+
+        // 設定フィールドの変更イベントリスナー
+        document.getElementById('repo-owner').addEventListener('change', updateConfig);
+        document.getElementById('repo-name').addEventListener('change', updateConfig);
+        document.getElementById('github-token').addEventListener('change', updateConfig);
+        document.getElementById('netlify-hook').addEventListener('change', updateConfig);
 
         let uploadedFiles = [];
 
@@ -96,16 +173,50 @@
         document.getElementById('deployButton').addEventListener('click', async () => {
             if (uploadedFiles.length === 0) return;
 
+            // 設定が揃っているか確認
+            updateConfig();
+            if (!GITHUB_TOKEN || !REPO_OWNER) {
+                statusEl.textContent = 'エラー: GitHubユーザー名とトークンを入力してください';
+                statusEl.style.color = '#e74c3c';
+                return;
+            }
+
             const statusEl = document.getElementById('status');
             statusEl.textContent = 'アップロード中...';
+            statusEl.style.color = '#3498db';
 
             try {
                 // 最新のコミットSHAを取得
                 const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/main`, {
                     headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                 });
-                const shaData = await shaResponse.json();
-                const latestCommitSha = shaData.object.sha;
+
+                if (!shaResponse.ok) {
+                    // mainブランチが見つからない場合はmasterを試す
+                    const masterShaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/master`, {
+                        headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                    });
+
+                    if (!masterShaResponse.ok) {
+                        throw new Error(`GitHub APIエラー: ${masterShaResponse.status} ${masterShaResponse.statusText}`);
+                    }
+
+                    const shaData = await masterShaResponse.json();
+                    if (!shaData.object || !shaData.object.sha) {
+                        throw new Error('リポジトリ情報を取得できませんでした。');
+                    }
+
+                    var latestCommitSha = shaData.object.sha;
+                } else {
+                    const shaData = await shaResponse.json();
+                    if (!shaData.object || !shaData.object.sha) {
+                        throw new Error('リポジトリ情報を取得できませんでした。');
+                    }
+
+                    var latestCommitSha = shaData.object.sha;
+                }
+
+                console.log(`最新のコミットSHA: ${latestCommitSha}`);
 
                 for (const file of uploadedFiles) {
                     // ファイルをBase64に変換
@@ -138,11 +249,17 @@
 
                 statusEl.textContent += '\n\nすべてのファイルがアップロードされました！Netlifyが自動デプロイを開始します（約30秒かかります）';
 
-                const NETLIFY_BUILD_HOOK = 'https://api.netlify.com/build_hooks/あなたのビルドフックID';
-
                 // すべてのファイルアップロード後に追加
-                await fetch(NETLIFY_BUILD_HOOK, { method: 'POST' });
-                statusEl.textContent += '\nNetlifyへのデプロイをトリガーしました！';
+                if (NETLIFY_BUILD_HOOK) {
+                    try {
+                        await fetch(NETLIFY_BUILD_HOOK, { method: 'POST' });
+                        statusEl.textContent += '\nNetlifyへのデプロイをトリガーしました！';
+                    } catch (netlifyError) {
+                        statusEl.textContent += `\nNetlifyデプロイエラー: ${netlifyError.message}`;
+                    }
+                } else {
+                    statusEl.textContent += '\n注意: Netlifyビルドフックが設定されていないため、自動デプロイは実行されませんでした。';
+                }
             } catch (error) {
                 statusEl.textContent = `エラー: ${error.message}`;
             }
