@@ -7,6 +7,35 @@
   node_bundler = "esbuild"
   external_node_modules = ["express", "multer"]
 
+[[headers]]
+  for = "/api/font/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, OPTIONS"
+    Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept"
+    Cache-Control = "public, max-age=31536000"
+
+# FontのMIMEタイプを設定
+[[headers]]
+  for = "*.woff2"
+  [headers.values]
+    Content-Type = "font/woff2"
+
+[[headers]]
+  for = "*.woff"
+  [headers.values]
+    Content-Type = "font/woff"
+
+[[headers]]
+  for = "*.ttf"
+  [headers.values]
+    Content-Type = "font/ttf"
+
+[[headers]]
+  for = "*.otf"
+  [headers.values]
+    Content-Type = "font/otf"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

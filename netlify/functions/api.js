@@ -35,6 +35,20 @@ if (!fs.existsSync(fontsDir)) {
     try {
         fs.mkdirSync(fontsDir, { recursive: true });
         console.log('fontsフォルダを作成しました:', fontsDir);
+
+        // ディレクトリのパーミッションを設定
+        fs.chmodSync(fontsDir, 0o755);
+        console.log('fontsフォルダのパーミッションを設定しました');
+
+        // ディレクトリ作成の確認
+        if (fs.existsSync(fontsDir)) {
+            const stats = fs.statSync(fontsDir);
+            console.log('fontsフォルダの状態:', {
+                isDirectory: stats.isDirectory(),
+                permissions: stats.mode,
+                owner: stats.uid
+            });
+        }
     } catch (err) {
         console.error('fontsフォルダの作成中にエラーが発生しました:', err);
     }
@@ -133,10 +147,26 @@ app.post('/api/upload-font', upload.array('fonts', 20), (req, res) => {
             try {
                 const filePath = path.join(fontsDir, file.originalname);
                 const fontData = fs.readFileSync(filePath);
-                fontStorage[file.originalname] = {
-                    data: fontData,
-                    dateAdded: new Date()
-                };
+
+                // ファイルが正しく保存されたことを確認
+                if (fontData && fontData.length > 0) {
+                    console.log(`フォント「${file.originalname}」をメモリに保存しました (${fontData.length} bytes)`);
+
+                    // ファイルが読み取り可能か確認
+                    const fileStats = fs.statSync(filePath);
+                    console.log(`フォント「${file.originalname}」の状態:`, {
+                        size: fileStats.size,
+                        permissions: fileStats.mode,
+                        readable: fs.accessSync(filePath, fs.constants.R_OK) === undefined
+                    });
+
+                    fontStorage[file.originalname] = {
+                        data: fontData,
+                        dateAdded: new Date()
+                    };
+                } else {
+                    throw new Error(`ファイル「${file.originalname}」の読み取りに失敗しました (サイズ: 0)`);
+                }
             } catch (readError) {
                 console.error(`ファイル読み取りエラー: ${file.originalname}`, readError);
             }
@@ -182,6 +212,8 @@ app.get('/api/font/:fontName', (req, res) => {
             // CORSヘッダーを追加（フォントファイル用）
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+            res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
 
             // キャッシュ設定
             res.setHeader('Cache-Control', 'public, max-age=31536000');
@@ -209,6 +241,8 @@ app.get('/api/font/:fontName', (req, res) => {
             // CORSヘッダーを追加（フォントファイル用）
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+            res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
 
             // キャッシュ設定
             res.setHeader('Cache-Control', 'public, max-age=31536000');

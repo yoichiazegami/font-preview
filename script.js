@@ -196,13 +196,36 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const fontInfo of fontsList) {
                 try {
                     // サーバーからフォントデータを取得
-                    const response = await fetch(`/api/font/${encodeURIComponent(fontInfo.name)}`);
+                    const fontUrl = `/api/font/${encodeURIComponent(fontInfo.name)}`;
+                    console.log(`フォント「${fontInfo.name}」をリクエスト: ${fontUrl}`);
+
+                    // キャッシュバスティングを追加（開発時のみ）
+                    const requestUrl = fontUrl + (window.location.hostname === 'localhost' ?
+                        `?_=${new Date().getTime()}` : '');
+
+                    const response = await fetch(requestUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': '*/*',
+                            'Cache-Control': 'no-cache'
+                        },
+                        credentials: 'same-origin'
+                    });
+
                     if (!response.ok) {
-                        console.error(`フォント「${fontInfo.name}」の取得に失敗しました`);
+                        console.error(`フォント「${fontInfo.name}」の取得に失敗しました: ${response.status} ${response.statusText}`);
                         continue;
                     }
 
+                    // レスポンスヘッダーの確認
+                    console.log(`フォント「${fontInfo.name}」のレスポンスヘッダー:`,
+                        Array.from(response.headers.entries())
+                            .reduce((obj, [key, val]) => ({ ...obj, [key]: val }), {})
+                    );
+
                     const fontData = await response.arrayBuffer();
+                    console.log(`フォント「${fontInfo.name}」を取得しました (${fontData.byteLength} bytes)`);
+
                     const displayName = fontInfo.name;
                     const name = fontInfo.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
                     fonts.push({ name, displayName, data: fontData });
@@ -214,7 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // フォントをページに追加
             if (fonts.length > 0) {
+                console.log(`${fonts.length}個のフォントをページに追加します`);
                 addFontsToPage(fonts);
+            } else {
+                console.warn('サーバーからフォントを取得できませんでした');
             }
 
             return fonts;
@@ -629,11 +655,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // IndexedDBにフォントがない場合はデフォルトフォントを使用
             console.log('デフォルトフォントを使用します');
-            return [
-                { name: 'AZEGAMI_01', displayName: 'AZEGAMI_01.woff2' },
-                { name: 'AZEGAMI_02', displayName: 'AZEGAMI_02.woff2' },
-                { name: 'TEST_03', displayName: 'TEST_03.woff2' }
+            // フォントファイルのパスを指定
+            const fontFiles = [
+                'fonts/AZEGAMI_01.woff2',
+                'fonts/AZEGAMI_02.woff2',
+                'fonts/TEST_03.woff2'
             ];
+
+            // フォントファイルを読み込む
+            const fonts = [];
+            for (const fontPath of fontFiles) {
+                try {
+                    const response = await fetch(fontPath);
+                    if (!response.ok) {
+                        console.error(`フォントファイル「${fontPath}」の読み込みに失敗しました`);
+                        continue;
+                    }
+
+                    const fontData = await response.arrayBuffer();
+                    const displayName = fontPath.split('/').pop();
+                    const name = displayName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+
+                    fonts.push({ name, displayName, data: fontData });
+                    console.log(`フォントファイル「${fontPath}」を読み込みました`);
+                } catch (error) {
+                    console.error(`フォントファイル「${fontPath}」の読み込みエラー:`, error);
+                }
+            }
+
+            // フォントをページに追加
+            if (fonts.length > 0) {
+                addFontsToPage(fonts);
+            }
+
+            return fonts;
         } catch (error) {
             console.error('フォント検出エラー:', error);
             return [];
