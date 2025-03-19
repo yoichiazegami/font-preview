@@ -191,23 +191,47 @@
             }
 
             try {
-                // リポジトリの存在を確認
-                const repoResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
+                // リポジトリ情報を取得してデフォルトブランチを確認
+                const repoInfoResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
                     headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                 });
 
-                if (!repoResponse.ok) {
-                    if (repoResponse.status === 404) {
-                        statusEl.textContent = `リポジトリが見つかりません: ${REPO_OWNER}/${REPO_NAME}\n新しいリポジトリを作成する必要があります。`;
-                    } else {
-                        const errorData = await repoResponse.json();
-                        statusEl.textContent = `リポジトリ確認エラー: ${errorData.message || repoResponse.statusText}`;
-                    }
-                    statusEl.style.color = '#e74c3c';
-                    return;
+                if (!repoInfoResponse.ok) {
+                    throw new Error(`リポジトリ情報の取得に失敗しました: ${repoInfoResponse.status}`);
                 }
 
-                const repoData = await repoResponse.json();
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch || 'main';
+                statusEl.textContent += `\nリポジトリのデフォルトブランチ: ${defaultBranch}`;
+
+                // 使用するブランチ
+                let currentBranch = defaultBranch;
+
+                // SHAを取得する必要はないが、参考として残す
+                try {
+                    const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
+                        headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                    });
+
+                    if (!shaResponse.ok) {
+                        statusEl.textContent += `\n注意: ${currentBranch}ブランチが見つかりません。`;
+
+                        // 代替ブランチを試す
+                        const altBranch = currentBranch === 'main' ? 'master' : 'main';
+                        const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                        });
+
+                        if (altResponse.ok) {
+                            currentBranch = altBranch;
+                            statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                        } else {
+                            statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                        }
+                    }
+                } catch (branchError) {
+                    console.error('ブランチ情報取得エラー:', branchError);
+                }
 
                 // fontsディレクトリの存在を確認または作成
                 try {
@@ -230,7 +254,7 @@
                             body: JSON.stringify({
                                 message: 'fontsディレクトリを初期化',
                                 content: btoa('# Fonts Directory\nThis directory contains font files for the application.'),
-                                branch: repoData.default_branch
+                                branch: repoInfo.default_branch
                             })
                         });
 
@@ -242,7 +266,7 @@
                         statusEl.textContent = `fontsディレクトリを作成しました。`;
                     }
 
-                    statusEl.textContent = `リポジトリ接続テスト成功！\n${REPO_OWNER}/${REPO_NAME} (${repoData.default_branch}ブランチ)\nフォントファイルをアップロードできます。`;
+                    statusEl.textContent = `リポジトリ接続テスト成功！\n${REPO_OWNER}/${REPO_NAME} (${repoInfo.default_branch}ブランチ)\nフォントファイルをアップロードできます。`;
                     statusEl.style.color = '#27ae60';
                 } catch (dirError) {
                     statusEl.textContent = `エラー: ${dirError.message}`;
@@ -304,37 +328,47 @@
             let failureCount = 0;
 
             try {
-                // 最新のコミットSHAを取得
-                const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/main`, {
+                // リポジトリ情報を取得してデフォルトブランチを確認
+                const repoInfoResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
                     headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                 });
 
-                if (!shaResponse.ok) {
-                    // mainブランチが見つからない場合はmasterを試す
-                    const masterShaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/master`, {
+                if (!repoInfoResponse.ok) {
+                    throw new Error(`リポジトリ情報の取得に失敗しました: ${repoInfoResponse.status}`);
+                }
+
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch || 'main';
+                statusEl.textContent += `\nリポジトリのデフォルトブランチ: ${defaultBranch}`;
+
+                // 使用するブランチ
+                let currentBranch = defaultBranch;
+
+                // SHAを取得する必要はないが、参考として残す
+                try {
+                    const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${currentBranch}`, {
                         headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                     });
 
-                    if (!masterShaResponse.ok) {
-                        throw new Error(`GitHub APIエラー: ${masterShaResponse.status} ${masterShaResponse.statusText}`);
-                    }
+                    if (!shaResponse.ok) {
+                        statusEl.textContent += `\n注意: ${currentBranch}ブランチが見つかりません。`;
 
-                    const shaData = await masterShaResponse.json();
-                    if (!shaData.object || !shaData.object.sha) {
-                        throw new Error('リポジトリ情報を取得できませんでした。');
-                    }
+                        // 代替ブランチを試す
+                        const altBranch = currentBranch === 'main' ? 'master' : 'main';
+                        const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${altBranch}`, {
+                            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                        });
 
-                    var latestCommitSha = shaData.object.sha;
-                } else {
-                    const shaData = await shaResponse.json();
-                    if (!shaData.object || !shaData.object.sha) {
-                        throw new Error('リポジトリ情報を取得できませんでした。');
+                        if (altResponse.ok) {
+                            currentBranch = altBranch;
+                            statusEl.textContent += `\n${altBranch}ブランチを使用します。`;
+                        } else {
+                            statusEl.textContent += `\n警告: 標準的なブランチ（main/master）が見つかりません。`;
+                        }
                     }
-
-                    var latestCommitSha = shaData.object.sha;
+                } catch (branchError) {
+                    console.error('ブランチ情報取得エラー:', branchError);
                 }
-
-                console.log(`最新のコミットSHA: ${latestCommitSha}`);
 
                 for (const file of uploadedFiles) {
                     try {
@@ -360,7 +394,7 @@
                             body: JSON.stringify({
                                 message: `フォント追加: ${file.name}`,
                                 content: fileContents,
-                                branch: 'main'
+                                branch: currentBranch
                             })
                         });
 
@@ -377,12 +411,14 @@
                                 errorDetail = `ステータスコード ${response.status}`;
                             }
 
-                            // mainブランチが見つからない場合はmasterブランチを試す
-                            if (response.status === 422 && errorDetail.includes('branch') && !errorDetail.includes('master')) {
-                                // masterブランチで再試行
-                                statusEl.textContent += `\nmainブランチが見つかりません。masterブランチで試行します...`;
+                            // ブランチが見つからない場合は別のブランチを試す
+                            if ((response.status === 422 || response.status === 404) &&
+                                (errorDetail.includes('Branch') || errorDetail.includes('branch') || errorDetail.includes('not found'))) {
 
-                                const masterResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FONTS_PATH}${safeFileName}`, {
+                                const altBranch = currentBranch === 'main' ? 'master' : 'main';
+                                statusEl.textContent += `\n${currentBranch}ブランチでエラー。${altBranch}ブランチを試行します...`;
+
+                                const altResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FONTS_PATH}${safeFileName}`, {
                                     method: 'PUT',
                                     headers: {
                                         'Authorization': `token ${GITHUB_TOKEN}`,
@@ -391,16 +427,18 @@
                                     body: JSON.stringify({
                                         message: `フォント追加: ${file.name}`,
                                         content: fileContents,
-                                        branch: 'master'
+                                        branch: altBranch
                                     })
                                 });
 
-                                if (!masterResponse.ok) {
-                                    const masterErrorData = await masterResponse.json();
-                                    throw new Error(`アップロード失敗 (master): ${file.name} - ${masterErrorData.message || '不明なエラー'}`);
+                                if (!altResponse.ok) {
+                                    const altErrorData = await altResponse.json();
+                                    throw new Error(`アップロード失敗: ${file.name} - ${altErrorData.message || '不明なエラー'}`);
                                 }
 
-                                statusEl.textContent += `\n「${file.name}」がmasterブランチにアップロード完了`;
+                                // 成功したブランチを記録
+                                currentBranch = altBranch;
+                                statusEl.textContent += `\n「${file.name}」を${altBranch}ブランチにアップロード完了`;
                                 successCount++;
                                 continue;
                             }
