@@ -265,27 +265,90 @@ button:hover {
 }
 
 .font-list {
+    margin-top: 15px;
+}
+
+.font-list h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+#uploaded-fonts {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    background-color: #fdfdfd;
+}
+
+/* フォント項目のスタイル */
+.font-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 12px;
+}
+
+.font-item:last-child {
+    border-bottom: none;
+}
+
+.font-name {
     flex: 1;
-    min-width: 250px;
-}
-
-input[type="file"] {
-    width: 0.1px;
-    height: 0.1px;
-    opacity: 0;
+    width: 70%;
+    white-space: nowrap;
     overflow: hidden;
-    position: absolute;
-    z-index: -1;
+    text-overflow: ellipsis;
 }
 
+.delete-font-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.delete-font-btn:hover {
+    background-color: #c0392b;
+}
+
+/* フォントのアップロード状態表示 */
+#upload-status {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* フォント更新ボタン */
+.refresh-button {
+    margin-top: 10px;
+    width: 100%;
+    background-color: #2ecc71;
+}
+
+.refresh-button:hover {
+    background-color: #27ae60;
+}
+
+/* アップロードボタンのスタイル改善 */
 .upload-button {
     display: inline-block;
-    padding: 8px 12px;
+    padding: 8px 15px;
     background-color: #3498db;
     color: white;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
     transition: background-color 0.3s;
 }
 
@@ -293,44 +356,12 @@ input[type="file"] {
     background-color: #2980b9;
 }
 
+input[type="file"] {
+    display: none;
+}
+
 .upload-note {
+    font-size: 11px;
+    color: #666;
     margin-top: 5px;
-    font-size: 12px;
-    color: #777;
-}
-
-#upload-status {
-    margin-top: 10px;
-    font-size: 13px;
-}
-
-#uploaded-fonts {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 5px;
-    background-color: white;
-}
-
-#uploaded-fonts li {
-    padding: 5px;
-    border-bottom: 1px solid #eee;
-    font-size: 13px;
-}
-
-#uploaded-fonts li:last-child {
-    border-bottom: none;
-}
-
-.refresh-button {
-    margin-top: 15px;
-    background-color: #27ae60;
-}
-
-.refresh-button:hover {
-    background-color: #219955;
 }
