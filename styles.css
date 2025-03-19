@@ -96,6 +96,10 @@ input[type="range"] {
     height: calc(100vh - 140px);
 }
 
+.position-relative {
+    position: relative;
+}
+
 .preview-header {
     display: flex;
     justify-content: space-between;
@@ -364,4 +368,14 @@ input[type="file"] {
     font-size: 11px;
     color: #666;
     margin-top: 5px;
+}
+
+/* バージョン情報表示 */
+.version-info {
+    position: absolute;
+    bottom: 5px;
+    right: 10px;
+    font-size: 10px;
+    color: #999;
+    opacity: 0.7;
 }
