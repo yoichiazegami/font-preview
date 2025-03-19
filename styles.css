@@ -1,24 +1,5 @@
 /* ウェブフォントの定義 */
-@font-face {
-    font-family: 'MyHandwrittenFont';
-    src: url('fonts/my_handwritten_font76.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-}
-
-@font-face {
-    font-family: 'MyHandwrittenFont80';
-    src: url('fonts/my_handwritten_font80.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-}
-
-@font-face {
-    font-family: 'MyHandwrittenFont446737';
-    src: url('fonts/my_handwritten_font_446737.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-}
+/* フォント定義はJavaScriptで動的に生成されます */
 
 * {
     box-sizing: border-box;
@@ -66,9 +47,9 @@ h2 {
 
 .font-selector,
 .size-selector,
-.weight-selector,
 .letter-spacing-selector,
-.line-height-selector {
+.line-height-selector,
+.advanced-settings {
     flex: 1;
     min-width: 200px;
 }
@@ -91,6 +72,27 @@ input[type="text"] {
 input[type="range"] {
     width: 100%;
     margin-bottom: 8px;
+}
+
+.advanced-settings-toggle {
+    width: 100%;
+}
+
+#advanced-settings-panel {
+    margin-top: 15px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+#advanced-settings-panel.hidden {
+    display: none;
+}
+
+.writing-mode-selector,
+.text-align-selector {
+    margin-bottom: 15px;
 }
 
 .preview-container {
@@ -118,6 +120,43 @@ input[type="range"] {
     padding: 20px;
     min-height: 200px;
     outline: none;
+    /* 縦書きスタイルは動的に追加されます */
+}
+
+.preview-content.vertical-writing {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    height: 400px;
+    min-height: 400px;
+    padding: 20px 30px 20px 20px;
+    /* 右側に余白を多めに */
+    margin-left: auto;
+    /* 右寄せ配置 */
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    /* Flexboxを使用 */
+}
+
+/* 縦書きモードでのテキスト揃え調整 */
+.preview-content.vertical-writing.vertical-align-top {
+    justify-content: flex-start;
+    /* 上揃え */
+}
+
+.preview-content.vertical-writing.vertical-align-center {
+    justify-content: center;
+    /* 中央揃え */
+}
+
+.preview-content.vertical-writing.vertical-align-bottom {
+    justify-content: flex-end;
+    /* 下揃え */
+}
+
+/* 縦書きモードでのコンテンツ幅を確保 */
+.preview-content.vertical-writing p {
+    width: 100%;
 }
 
 .custom-font-section {
@@ -156,5 +195,14 @@ button:hover {
 
     .custom-font-input {
         grid-template-columns: 1fr;
+    }
+
+    .preview-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .font-info {
+        margin-top: 10px;
     }
 }

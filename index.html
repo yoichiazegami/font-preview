@@ -14,26 +14,13 @@
 
         <div class="controls">
             <div class="font-selector">
-                <label for="font-select">フォント選択:</label>
-                <select id="font-select">
-                    <option value="MyHandwrittenFont">手書きフォント1</option>
-                    <option value="MyHandwrittenFont80">手書きフォント2</option>
-                    <option value="MyHandwrittenFont446737">手書きフォント3</option>
-                    <option value="Arial">Arial</option>
-                    <option value="Helvetica">Helvetica</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Georgia">Georgia</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Verdana">Verdana</option>
-                    <option value="Impact">Impact</option>
-                    <option value="Comic Sans MS">Comic Sans MS</option>
-                    <option value="Tahoma">Tahoma</option>
-                    <option value="Trebuchet MS">Trebuchet MS</option>
-                    <option value="メイリオ">メイリオ</option>
-                    <option value="游ゴシック">游ゴシック</option>
-                    <option value="游明朝">游明朝</option>
-                    <option value="MS Pゴシック">MS Pゴシック</option>
-                    <option value="MS P明朝">MS P明朝</option>
+                <label for="font-name-select">フォント名:</label>
+                <select id="font-name-select">
+                    <!-- フォント名オプションはJavaScriptで動的に生成されます -->
+                </select>
+                <label for="font-number-select">番号:</label>
+                <select id="font-number-select">
+                    <!-- フォント番号オプションはJavaScriptで動的に生成されます -->
                 </select>
             </div>
 
@@ -41,14 +28,6 @@
                 <label for="font-size">フォントサイズ:</label>
                 <input type="range" id="font-size" min="8" max="72" value="16">
                 <span id="size-value">16px</span>
-            </div>
-
-            <div class="weight-selector">
-                <label for="font-weight">太さ:</label>
-                <select id="font-weight">
-                    <option value="normal">標準</option>
-                    <option value="bold">太字</option>
-                </select>
             </div>
 
             <div class="letter-spacing-selector">
@@ -62,15 +41,34 @@
                 <input type="range" id="line-height" min="0.8" max="100" value="1.6" step="0.1">
                 <span id="line-height-value">1.6</span>
             </div>
+
+            <div class="advanced-settings">
+                <button id="advanced-settings-toggle">詳細な設定</button>
+                <div id="advanced-settings-panel" class="hidden">
+                    <div class="writing-mode-selector">
+                        <label for="writing-mode">文字方向:</label>
+                        <select id="writing-mode">
+                            <option value="horizontal-tb">横書き</option>
+                            <option value="vertical-rl">縦書き</option>
+                        </select>
+                    </div>
+                    <div class="text-align-selector">
+                        <label for="text-align">文字揃え:</label>
+                        <select id="text-align">
+                            <!-- テキスト揃えオプションはJavaScriptで動的に生成されます -->
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="preview-container">
             <div class="preview-header">
                 <h2>プレビュー</h2>
                 <div class="font-info">
-                    <span id="current-font">Arial</span>, <span id="current-size">16px</span>, <span
-                        id="current-weight">標準</span>, 字間: <span id="current-letter-spacing">0px</span>, 行間: <span
-                        id="current-line-height">1.6</span>
+                    <span id="current-font">デフォルト</span>, <span id="current-size">16px</span>,
+                    字間: <span id="current-letter-spacing">0px</span>, 行間: <span id="current-line-height">1.6</span>,
+                    <span id="current-writing-mode">横書き</span>, <span id="current-text-align">左揃え</span>
                 </div>
             </div>
 

@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 要素の取得
-    const fontSelect = document.getElementById('font-select');
+    const fontNameSelect = document.getElementById('font-name-select');
+    const fontNumberSelect = document.getElementById('font-number-select');
     const fontSizeInput = document.getElementById('font-size');
-    const fontWeightSelect = document.getElementById('font-weight');
     const letterSpacingInput = document.getElementById('letter-spacing');
     const lineHeightInput = document.getElementById('line-height');
     const sizeValueDisplay = document.getElementById('size-value');
@@ -11,82 +11,324 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewText = document.getElementById('preview-text');
     const currentFontDisplay = document.getElementById('current-font');
     const currentSizeDisplay = document.getElementById('current-size');
-    const currentWeightDisplay = document.getElementById('current-weight');
     const currentLetterSpacingDisplay = document.getElementById('current-letter-spacing');
     const currentLineHeightDisplay = document.getElementById('current-line-height');
 
-    // フォントフォルダ内のフォントを自動検出（サーバー環境が必要）
-    // この機能はサーバー上で実行する必要があります
-    // ローカルファイルシステムでは動作しない場合があります
+    // 詳細設定要素
+    const advancedSettingsToggle = document.getElementById('advanced-settings-toggle');
+    const advancedSettingsPanel = document.getElementById('advanced-settings-panel');
+    const writingModeSelect = document.getElementById('writing-mode');
+    const textAlignSelect = document.getElementById('text-align');
+    const currentWritingModeDisplay = document.getElementById('current-writing-mode');
+    const currentTextAlignDisplay = document.getElementById('current-text-align');
 
-    // 初期設定
-    // 最初のオプションを選択（手書きフォント）
-    fontSelect.selectedIndex = 0;
-    updatePreview();
+    // 詳細設定パネルの表示/非表示切り替え
+    advancedSettingsToggle.addEventListener('click', () => {
+        advancedSettingsPanel.classList.toggle('hidden');
+        advancedSettingsToggle.textContent =
+            advancedSettingsPanel.classList.contains('hidden') ? '詳細な設定' : '詳細設定を閉じる';
+    });
+
+    // 文字方向が変更されたときにテキスト揃えのオプションを更新
+    writingModeSelect.addEventListener('change', function () {
+        const isVertical = this.value === 'vertical-rl';
+
+        // 既存のオプションを保存
+        const currentValue = textAlignSelect.value;
+
+        // テキスト揃えオプションをクリア
+        while (textAlignSelect.options.length > 0) {
+            textAlignSelect.remove(0);
+        }
+
+        // 縦書き/横書きに応じたオプションを追加
+        if (isVertical) {
+            // 縦書きの場合
+            addOption(textAlignSelect, 'left', '上揃え');
+            addOption(textAlignSelect, 'center', '中央揃え');
+            addOption(textAlignSelect, 'right', '下揃え');
+        } else {
+            // 横書きの場合
+            addOption(textAlignSelect, 'left', '左揃え');
+            addOption(textAlignSelect, 'center', '中央揃え');
+            addOption(textAlignSelect, 'right', '右揃え');
+        }
+
+        // 保存した値を復元（同じ選択位置を維持）
+        textAlignSelect.value = currentValue;
+
+        // プレビューを更新
+        updatePreview();
+    });
+
+    // セレクト要素にオプションを追加するヘルパー関数
+    function addOption(selectElement, value, text) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        selectElement.appendChild(option);
+    }
+
+    // fontsフォルダ内のフォントファイルを検出する関数
+    async function detectFontsInFolder() {
+        try {
+            // ファイル一覧を取得するためのAPIリクエスト
+            const response = await fetch('/api/list-fonts');
+            if (!response.ok) {
+                throw new Error('フォントファイル一覧の取得に失敗しました');
+            }
+
+            const files = await response.json();
+            return files.map(file => {
+                const name = file.replace(/\.(woff2|woff|ttf|otf)$/, '');
+                return {
+                    name: name,
+                    displayName: file
+                };
+            });
+        } catch (error) {
+            console.error('フォント検出エラー:', error);
+            // エラー時のフォールバックとして固定リストを使用
+            return [
+                { name: 'YAMADA_01', displayName: 'YAMADA_01.woff2' },
+                { name: 'YAMADA_02', displayName: 'YAMADA_02.woff2' },
+                { name: 'SATO_01', displayName: 'SATO_01.woff2' },
+                { name: 'SATO_02', displayName: 'SATO_02.woff2' },
+                { name: 'font_6', displayName: 'font_6.woff2' },
+                { name: 'my_handwritten_font_446737', displayName: 'my_handwritten_font_446737.woff2' },
+                { name: 'my_handwritten_font80', displayName: 'my_handwritten_font80.woff2' },
+                { name: 'my_handwritten_font76', displayName: 'my_handwritten_font76.woff2' }
+            ];
+        }
+    }
+
+    // @font-face定義を動的に生成する関数
+    function createFontFaceDefinitions(fonts) {
+        // 既存の定義を削除（動的に追加したものだけ）
+        document.querySelectorAll('style.dynamic-font-faces').forEach(style => style.remove());
+
+        // 新しいstyle要素を作成
+        const style = document.createElement('style');
+        style.className = 'dynamic-font-faces';
+
+        // @font-face定義を生成
+        let fontFaceCSS = '';
+        fonts.forEach(font => {
+            const fontExt = font.displayName.split('.').pop();
+            fontFaceCSS += `
+@font-face {
+    font-family: '${font.name}';
+    src: url('fonts/${font.displayName}') format('${fontExt === 'woff2' ? 'woff2' :
+                    fontExt === 'woff' ? 'woff' :
+                        fontExt === 'ttf' ? 'truetype' :
+                            fontExt === 'otf' ? 'opentype' : 'woff2'}');
+    font-weight: normal;
+    font-style: normal;
+}`;
+        });
+
+        style.textContent = fontFaceCSS;
+        document.head.appendChild(style);
+    }
+
+    // フォントファイル一覧を取得して処理を開始
+    let fontsInFolder = [];
+
+    detectFontsInFolder().then(fonts => {
+        fontsInFolder = fonts;
+
+        // @font-face定義を生成
+        createFontFaceDefinitions(fontsInFolder);
+
+        // フォント名・番号オプションを生成
+        createFontNameOptions();
+        createFontNumberOptions();
+
+        // 初期設定
+        if (fontNameSelect.options.length > 0) {
+            fontNameSelect.selectedIndex = 0;
+            createFontNumberOptions(); // 番号選択リストを初期化
+        }
+        if (fontNumberSelect.options.length > 0) {
+            fontNumberSelect.selectedIndex = 0;
+        }
+
+        // テキスト揃えの初期設定
+        // 横書きモードのオプションを設定
+        addOption(textAlignSelect, 'left', '左揃え');
+        addOption(textAlignSelect, 'center', '中央揃え');
+        addOption(textAlignSelect, 'right', '右揃え');
+        textAlignSelect.value = 'left';
+
+        updatePreview();
+    });
+
+    // フォント名と番号を分離する関数
+    function parseFontName(fontName) {
+        const match = fontName.match(/^(.+?)_(\d+)$/);
+        if (match) {
+            return {
+                name: match[1],
+                number: match[2]
+            };
+        }
+        return null;
+    }
+
+    // フォント名オプションを生成
+    function createFontNameOptions() {
+        // 既存のオプションをクリア
+        while (fontNameSelect.options.length > 0) {
+            fontNameSelect.remove(0);
+        }
+
+        const fontNames = new Set();
+
+        // フォント名を収集
+        fontsInFolder.forEach(font => {
+            const parsed = parseFontName(font.name);
+            if (parsed) {
+                fontNames.add(parsed.name);
+            }
+        });
+
+        // オプションを生成（アルファベット順でソート）
+        Array.from(fontNames).sort().forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            fontNameSelect.appendChild(option);
+        });
+
+        console.log("フォント名オプション生成完了");
+    }
+
+    // フォント番号オプションを生成
+    function createFontNumberOptions() {
+        // 既存のオプションをクリア
+        while (fontNumberSelect.options.length > 0) {
+            fontNumberSelect.remove(0);
+        }
+
+        const selectedName = fontNameSelect.value;
+        console.log("選択されたフォント名:", selectedName);
+
+        // 選択されたフォント名がない場合は番号選択を無効化
+        if (!selectedName) {
+            fontNumberSelect.disabled = true;
+            return;
+        }
+
+        fontNumberSelect.disabled = false;
+
+        // 選択された名前に対応する番号を収集
+        const numbers = new Set();
+        fontsInFolder.forEach(font => {
+            const parsed = parseFontName(font.name);
+            if (parsed && parsed.name === selectedName) {
+                numbers.add(parsed.number);
+                console.log("フォント番号を追加:", parsed.number);
+            }
+        });
+
+        // 番号を数値としてソートして追加
+        Array.from(numbers)
+            .sort((a, b) => parseInt(a) - parseInt(b))
+            .forEach(number => {
+                const option = document.createElement('option');
+                option.value = number;
+                option.textContent = number;
+                fontNumberSelect.appendChild(option);
+            });
+
+        console.log("フォント番号オプション生成完了:", Array.from(numbers));
+    }
 
     // イベントリスナーの設定
-    fontSelect.addEventListener('change', updatePreview);
+    fontNameSelect.addEventListener('change', () => {
+        console.log("フォント名が変更されました:", fontNameSelect.value);
+        createFontNumberOptions();
+        updatePreview();
+    });
+    fontNumberSelect.addEventListener('change', updatePreview);
     fontSizeInput.addEventListener('input', updatePreview);
-    fontWeightSelect.addEventListener('change', updatePreview);
     letterSpacingInput.addEventListener('input', updatePreview);
     lineHeightInput.addEventListener('input', updatePreview);
+    writingModeSelect.addEventListener('change', updatePreview);
+    textAlignSelect.addEventListener('change', updatePreview);
 
     // プレビューの更新関数
     function updatePreview() {
-        const selectedFont = fontSelect.value;
+        const selectedName = fontNameSelect.value;
+        const selectedNumber = fontNumberSelect.value;
         const selectedSize = fontSizeInput.value;
-        const selectedWeight = fontWeightSelect.value;
         const selectedLetterSpacing = letterSpacingInput.value;
         const selectedLineHeight = lineHeightInput.value;
+        const selectedWritingMode = writingModeSelect.value;
+        const selectedTextAlign = textAlignSelect.value;
+
+        console.log("プレビュー更新:", selectedName, selectedNumber);
+
+        // フォント名の設定
+        let fontFamily;
+
+        if (selectedName && selectedNumber) {
+            // フルネームの生成
+            const fullFontName = `${selectedName}_${selectedNumber}`;
+            fontFamily = `"${fullFontName}"`;
+            console.log("カスタムフォント使用:", fullFontName);
+        } else {
+            fontFamily = 'sans-serif';
+        }
+
+        // 縦書きクラスとテキスト揃えクラスの切り替え
+        // 一旦すべてのクラスを削除
+        previewText.classList.remove('vertical-writing', 'vertical-align-top', 'vertical-align-center', 'vertical-align-bottom');
+
+        if (selectedWritingMode === 'vertical-rl') {
+            // 縦書きの場合
+            previewText.classList.add('vertical-writing');
+
+            // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
+            if (selectedTextAlign === 'left') {
+                previewText.classList.add('vertical-align-top');
+                previewText.style.textAlign = 'start';
+            } else if (selectedTextAlign === 'center') {
+                previewText.classList.add('vertical-align-center');
+                previewText.style.textAlign = 'center';
+            } else if (selectedTextAlign === 'right') {
+                previewText.classList.add('vertical-align-bottom');
+                previewText.style.textAlign = 'end';
+            }
+
+            // 表示名の変換
+            currentTextAlignDisplay.textContent =
+                selectedTextAlign === 'left' ? '上揃え' :
+                    selectedTextAlign === 'center' ? '中央揃え' : '下揃え';
+        } else {
+            // 横書きの場合は通常のテキスト揃え
+            previewText.style.textAlign = selectedTextAlign;
+
+            // 表示名
+            currentTextAlignDisplay.textContent =
+                selectedTextAlign === 'left' ? '左揃え' :
+                    selectedTextAlign === 'center' ? '中央揃え' : '右揃え';
+        }
 
         // プレビューテキストのスタイル更新
-        previewText.style.fontFamily = selectedFont;
+        previewText.style.fontFamily = fontFamily;
         previewText.style.fontSize = `${selectedSize}px`;
-        previewText.style.fontWeight = selectedWeight;
         previewText.style.letterSpacing = `${selectedLetterSpacing}px`;
         previewText.style.lineHeight = selectedLineHeight;
 
         // 情報表示の更新
-        currentFontDisplay.textContent = selectedFont;
+        currentFontDisplay.textContent = (selectedName && selectedNumber) ?
+            `${selectedName}_${selectedNumber}` : 'デフォルト';
         currentSizeDisplay.textContent = `${selectedSize}px`;
-        currentWeightDisplay.textContent = selectedWeight === 'normal' ? '標準' : '太字';
         currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}px`;
         currentLineHeightDisplay.textContent = selectedLineHeight;
-        sizeValueDisplay.textContent = `${selectedSize}px`;
-        letterSpacingValueDisplay.textContent = `${selectedLetterSpacing}px`;
-        lineHeightValueDisplay.textContent = selectedLineHeight;
-    }
 
-    // ローカルフォントの検出（実験的機能）
-    if (window.queryLocalFonts) {
-        const detectLocalFontsBtn = document.createElement('button');
-        detectLocalFontsBtn.textContent = 'ローカルフォントを検出';
-        detectLocalFontsBtn.id = 'detect-local-fonts';
-        document.querySelector('.container').appendChild(detectLocalFontsBtn);
-
-        detectLocalFontsBtn.addEventListener('click', async () => {
-            try {
-                const availableFonts = await window.queryLocalFonts();
-
-                // 重複を避けるために既存のフォントを取得
-                const existingFonts = Array.from(fontSelect.options).map(option => option.value);
-
-                // 新しいフォントを追加
-                availableFonts.forEach(fontData => {
-                    const fontName = fontData.family;
-                    if (!existingFonts.includes(fontName)) {
-                        const option = document.createElement('option');
-                        option.value = fontName;
-                        option.textContent = fontName;
-                        fontSelect.appendChild(option);
-                        existingFonts.push(fontName);
-                    }
-                });
-
-                alert(`${availableFonts.length}個のローカルフォントが検出されました。重複を除いて追加しました。`);
-            } catch (error) {
-                alert('ローカルフォントの検出に失敗しました: ' + error.message);
-            }
-        });
+        // 詳細設定の表示更新（文字方向）
+        currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
     }
 }); 
