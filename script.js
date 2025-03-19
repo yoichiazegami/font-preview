@@ -229,11 +229,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const displayName = fontInfo.name;
                     const name = fontInfo.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
 
-                    // CSS識別子として安全なフォント名に変換
-                    const cssName = name.replace(/[^a-zA-Z0-9\-]/g, '-');
-                    console.log(`フォント名「${name}」をCSS識別子「${cssName}」に変換しました`);
+                    // 特殊なテストフォントの場合、フォント名を完全に置き換える
+                    const isTestFont = /^TEST[-_]?\d+/i.test(name);
+                    // CSS識別子として安全なフォント名に変換 - 問題のあるフォントには別名を割り当て
+                    const cssName = isTestFont ?
+                        `custom-test-font-${name.replace(/\D/g, '')}` :
+                        `font-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-                    fonts.push({ name: cssName, originalName: name, displayName, data: fontData });
+                    console.log(`フォント名「${name}」をCSS識別子「${cssName}」に変換しました${isTestFont ? ' (テストフォント特別処理)' : ''}`);
+
+                    fonts.push({
+                        name: cssName,
+                        originalName: name,
+                        displayName,
+                        data: fontData,
+                        isTestFont
+                    });
 
                 } catch (err) {
                     console.error(`フォント「${fontInfo.name}」の読み込みエラー:`, err);
@@ -621,13 +632,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ArrayBufferをBlobに変換
                 const fontBlob = new Blob([font.data]);
 
-                // 安全なフォント名を使用
-                const safeFontName = font.name.replace(/[^a-zA-Z0-9\-]/g, '-');
-                console.log(`FontFace登録: ${safeFontName}`);
+                // すでに安全なフォント名がnameに入っているので、そのまま使用
+                const fontFaceName = font.name;
+                console.log(`FontFace登録: ${fontFaceName}${font.isTestFont ? ' (テストフォント特別処理)' : ''}`);
 
                 // FontFaceを使用して直接フォントを登録
                 const fontFace = new FontFace(
-                    safeFontName,
+                    fontFaceName,
                     fontBlob,
                     {
                         style: 'normal',
@@ -640,12 +651,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fontFace.load().then(loadedFace => {
                     // フォントをドキュメントに追加
                     document.fonts.add(loadedFace);
-                    console.log(`フォント追加完了: ${safeFontName} (${format}形式)`);
+                    console.log(`フォント追加完了: ${fontFaceName} (${format}形式)`);
 
                     // プレビューを更新（非同期で読み込まれるため）
                     updatePreview();
                 }).catch(err => {
-                    console.error(`フォント「${safeFontName}」の読み込みエラー:`, err);
+                    console.error(`フォント「${fontFaceName}」の読み込みエラー:`, err);
                 });
             } catch (error) {
                 console.error(`フォント「${font.name}」の処理エラー:`, error);
@@ -881,22 +892,37 @@ document.addEventListener('DOMContentLoaded', () => {
             // フルネームの生成（元のフォント名フォーマットを保持）
             const originalFullName = `${selectedName}_${selectedNumber}`;
 
-            // 安全なフォント名に変換
-            const safeFontName = originalFullName.replace(/[^a-zA-Z0-9\-]/g, '-');
+            // テストフォントかどうか判定
+            const isTestFont = /^TEST$/i.test(selectedName);
+
+            // 適切なフォント名を生成
+            let cssCompatibleName;
+            if (isTestFont) {
+                cssCompatibleName = `custom-test-font-${selectedNumber}`;
+            } else {
+                cssCompatibleName = `font-${originalFullName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            }
 
             // 引用符を削除してフォントファミリー名を設定
-            fontFamily = `${safeFontName}, sans-serif`;
+            fontFamily = `${cssCompatibleName}, sans-serif`;
             fontDisplayName = originalFullName;
-            console.log("カスタムフォント使用:", originalFullName, "->", safeFontName);
+            console.log("カスタムフォント使用:", originalFullName, "->", cssCompatibleName);
         } else if (selectedName) {
-            // 番号がない場合はフォント名のみを使用
-            // 安全なフォント名に変換
-            const safeFontName = selectedName.replace(/[^a-zA-Z0-9\-]/g, '-');
+            // テストフォントかどうか判定
+            const isTestFont = /^TEST$/i.test(selectedName);
+
+            // 適切なフォント名を生成
+            let cssCompatibleName;
+            if (isTestFont) {
+                cssCompatibleName = `custom-test-font`;
+            } else {
+                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            }
 
             // 引用符を削除してフォントファミリー名を設定
-            fontFamily = `${safeFontName}, sans-serif`;
+            fontFamily = `${cssCompatibleName}, sans-serif`;
             fontDisplayName = selectedName;
-            console.log("番号なしカスタムフォント使用:", selectedName, "->", safeFontName);
+            console.log("番号なしカスタムフォント使用:", selectedName, "->", cssCompatibleName);
         } else {
             fontFamily = 'sans-serif';
             fontDisplayName = 'デフォルト';
@@ -907,20 +933,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const fontToCheck = selectedNumber && !fontNumberSelect.disabled ?
                 `${selectedName}_${selectedNumber}` : selectedName;
 
-            // 安全なフォント名に変換
-            const safeFontToCheck = fontToCheck.replace(/[^a-zA-Z0-9\-]/g, '-');
+            // テストフォントかどうか判定
+            const isTestFont = /^TEST$/i.test(selectedName);
+
+            // 適切なフォント名を生成
+            let cssCompatibleName;
+            if (isTestFont && selectedNumber) {
+                cssCompatibleName = `custom-test-font-${selectedNumber}`;
+            } else if (isTestFont) {
+                cssCompatibleName = `custom-test-font`;
+            } else if (selectedNumber && !fontNumberSelect.disabled) {
+                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}-${selectedNumber}`;
+            } else {
+                cssCompatibleName = `font-${selectedName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            }
 
             // フォントが読み込まれるのを待つ
             document.fonts.ready.then(() => {
                 const fontLoaded = Array.from(document.fonts).some(font =>
-                    font.family.replace(/['\"]/g, '') === safeFontToCheck ||
-                    font.family === safeFontToCheck
+                    font.family.replace(/['\"]/g, '') === cssCompatibleName ||
+                    font.family === cssCompatibleName
                 );
 
                 if (fontLoaded) {
-                    console.log(`フォント「${fontToCheck}」は読み込まれています`);
+                    console.log(`フォント「${fontToCheck}」は読み込まれています（CSS名: ${cssCompatibleName}）`);
                 } else {
-                    console.warn(`フォント「${fontToCheck}」はまだ読み込まれていません（安全名: ${safeFontToCheck}）`);
+                    console.warn(`フォント「${fontToCheck}」はまだ読み込まれていません（CSS名: ${cssCompatibleName}）`);
                     console.log('現在利用可能なフォント:',
                         Array.from(document.fonts).map(f => f.family).join(', '));
                 }
