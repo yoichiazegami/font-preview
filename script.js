@@ -22,11 +22,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentWritingModeDisplay = document.getElementById('current-writing-mode');
     const currentTextAlignDisplay = document.getElementById('current-text-align');
 
+    // 初期値の設定
+    fontSizeInput.value = 60;
+    fontSizeInput.min = 5;
+    fontSizeInput.max = 200;
+    sizeValueDisplay.textContent = '60px';
+
+    // 字間を相対値（em）で設定
+    letterSpacingInput.value = 0;
+    letterSpacingInput.min = -0.5;
+    letterSpacingInput.max = 1;
+    letterSpacingInput.step = 0.01;
+    letterSpacingValueDisplay.textContent = '0em';
+
+    lineHeightInput.value = 2;
+    lineHeightInput.min = 1;
+    lineHeightInput.max = 3;
+    lineHeightValueDisplay.textContent = '2';
+
     // 詳細設定パネルの表示/非表示切り替え
     advancedSettingsToggle.addEventListener('click', () => {
         advancedSettingsPanel.classList.toggle('hidden');
         advancedSettingsToggle.textContent =
             advancedSettingsPanel.classList.contains('hidden') ? '詳細な設定' : '詳細設定を閉じる';
+    });
+
+    // スライダー値の表示を更新するイベントリスナー
+    fontSizeInput.addEventListener('input', () => {
+        sizeValueDisplay.textContent = `${fontSizeInput.value}px`;
+        updatePreview();
+    });
+
+    letterSpacingInput.addEventListener('input', () => {
+        letterSpacingValueDisplay.textContent = `${letterSpacingInput.value}em`;
+        updatePreview();
+    });
+
+    lineHeightInput.addEventListener('input', () => {
+        lineHeightValueDisplay.textContent = lineHeightInput.value;
+        updatePreview();
     });
 
     // 文字方向が変更されたときにテキスト揃えのオプションを更新
@@ -318,14 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // プレビューテキストのスタイル更新
         previewText.style.fontFamily = fontFamily;
         previewText.style.fontSize = `${selectedSize}px`;
-        previewText.style.letterSpacing = `${selectedLetterSpacing}px`;
+        previewText.style.letterSpacing = `${selectedLetterSpacing}em`;
         previewText.style.lineHeight = selectedLineHeight;
 
         // 情報表示の更新
         currentFontDisplay.textContent = (selectedName && selectedNumber) ?
             `${selectedName}_${selectedNumber}` : 'デフォルト';
         currentSizeDisplay.textContent = `${selectedSize}px`;
-        currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}px`;
+        currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
         currentLineHeightDisplay.textContent = selectedLineHeight;
 
         // 詳細設定の表示更新（文字方向）
