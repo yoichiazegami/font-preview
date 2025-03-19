@@ -484,13 +484,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // フォント名と番号を分離する関数
     function parseFontName(fontName) {
-        const match = fontName.match(/^(.+?)[-_](\d+)$/);
+        // まず、拡張子を削除
+        const nameWithoutExt = fontName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+
+        // パターン1: name_123 形式
+        let match = nameWithoutExt.match(/^(.+?)[-_](\d+)$/);
         if (match) {
             return {
                 name: match[1],
                 number: match[2]
             };
         }
+
+        // パターン2: name123 形式（数字が末尾にある）
+        match = nameWithoutExt.match(/^([A-Za-z]+)(\d+)$/);
+        if (match) {
+            return {
+                name: match[1],
+                number: match[2]
+            };
+        }
+
+        // パターン3: 123name 形式（数字が先頭にある）
+        match = nameWithoutExt.match(/^(\d+)([A-Za-z]+)$/);
+        if (match) {
+            return {
+                name: match[2],
+                number: match[1]
+            };
+        }
+
+        // パターンに一致しない場合はnullを返す
         return null;
     }
 
@@ -517,6 +541,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // もしフォントが見つからなければ、デフォルトのオプションを追加
+        if (fontNames.size === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'デフォルト';
+            fontNameSelect.appendChild(option);
+            fontNameSelect.disabled = true;
+            fontNumberSelect.disabled = true;
+            console.log("フォントが見つからないため、デフォルトオプションを追加しました");
+            return;
+        }
+
+        fontNameSelect.disabled = false;
+
         // オプションを生成（アルファベット順でソート）
         Array.from(fontNames).sort().forEach(name => {
             const option = document.createElement('option');
@@ -525,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fontNameSelect.appendChild(option);
         });
 
-        console.log("フォント名オプション生成完了");
+        console.log(`${fontNames.size}個のフォント名オプション生成完了`);
     }
 
     // フォント番号オプションを生成
@@ -740,10 +778,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('GitHubリポジトリからフォントを読み込みます...');
 
             // Netlify Functionsを使ってGitHubリポジトリからフォント一覧を取得
-            const listResponse = await fetch('/.netlify/functions/list-fonts');
+            // クエリパラメータにタイムスタンプを追加してキャッシュを回避
+            const timestamp = new Date().getTime();
+            const listResponse = await fetch(`/.netlify/functions/list-fonts?t=${timestamp}`);
+
             if (!listResponse.ok) {
-                const errorData = await listResponse.json();
-                throw new Error(`フォント一覧の取得に失敗しました: ${errorData.error || listResponse.statusText}`);
+                let errorMsg = `フォント一覧の取得に失敗しました: ${listResponse.status} ${listResponse.statusText}`;
+                try {
+                    const errorData = await listResponse.json();
+                    errorMsg += ` - ${JSON.stringify(errorData)}`;
+                } catch (e) { }
+
+                throw new Error(errorMsg);
             }
 
             const fontsList = await listResponse.json();
@@ -751,19 +797,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (fontsList.length === 0) {
                 console.log('リポジトリにフォントファイルが見つかりませんでした');
+
+                // 代替手段としてlocalStorage内のフォントを確認（もしあれば）
+                await loadFontsFromIndexedDB();
                 return [];
             }
 
             // フォントをダウンロードして追加
             const fonts = [];
+            let successCount = 0;
+            let errorCount = 0;
+
             for (const font of fontsList) {
                 try {
-                    console.log(`リポジトリからフォント「${font.name}」をダウンロード: ${font.download_url}`);
+                    console.log(`リポジトリからフォント「${font.name}」をダウンロード...`);
 
-                    // Netlify Functionsを通してフォントデータを取得
-                    const fontResponse = await fetch(`/.netlify/functions/get-font/${encodeURIComponent(font.name)}`);
+                    // 直接GitHubのダウンロードURLを使用（より信頼性が高い）
+                    let fontUrl = font.download_url;
+                    if (!fontUrl) {
+                        console.warn(`フォント「${font.name}」のダウンロードURLがありません。Netlify Functions経由でアクセスします...`);
+                        fontUrl = `/.netlify/functions/get-font/${encodeURIComponent(font.name)}?t=${timestamp}`;
+                    }
+
+                    // フォントファイルを取得
+                    const fontResponse = await fetch(fontUrl);
                     if (!fontResponse.ok) {
                         console.error(`フォント「${font.name}」のダウンロードに失敗しました: ${fontResponse.status}`);
+                        errorCount++;
                         continue;
                     }
 
@@ -782,6 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (font.name.endsWith('.otf')) fontMimeType = 'font/opentype';
                     else {
                         console.warn(`未知のフォント形式: ${font.name}`);
+                        errorCount++;
                         continue;
                     }
 
@@ -791,10 +852,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         data: fontData,
                         mimeType: fontMimeType
                     });
+
+                    successCount++;
                 } catch (err) {
                     console.error(`フォント「${font.name}」の処理エラー:`, err);
+                    errorCount++;
                 }
             }
+
+            console.log(`フォント取得結果: 成功=${successCount}, 失敗=${errorCount}`);
 
             // フォントをページに追加
             if (fonts.length > 0) {
@@ -806,11 +872,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // IndexedDBにフォントを保存
                 await saveFontsToIndexedDB(fonts);
+                return fonts;
+            } else {
+                console.warn('フォントを追加できませんでした。IndexedDBから読み込みを試みます...');
+                await loadFontsFromIndexedDB();
+                return [];
             }
-
-            return fonts;
         } catch (error) {
             console.error('GitHubリポジトリからのフォント読み込みエラー:', error);
+
+            // エラー時はIndexedDBから読み込みを試みる
+            console.log('IndexedDBからフォントの読み込みを試みます...');
+            await loadFontsFromIndexedDB();
             return [];
         }
     }

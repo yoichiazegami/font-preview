@@ -7,6 +7,11 @@
   functions = "netlify/functions"
   publish = "."
 
+[build.environment]
+  GITHUB_OWNER = "yoichiazegami"
+  GITHUB_REPO = "font-preview"
+  GITHUB_BRANCH = "fix-font-display"
+
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["express", "multer", "serverless-http"]
