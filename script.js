@@ -616,44 +616,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // シンプルなフォントID
-                const fontFamilyName = `custom-font-${index + 1}`;
+                // シンプルで安全なフォントID（数字のみ）
+                const fontFamilyName = `font-${index + 1}`;
 
                 // 元のフォント名とIDをマッピング
                 font.id = fontFamilyName;
-                window.fontNameToId.set(font.originalName, fontFamilyName);
+
+                // originalNameがnullやundefinedの場合に対処
+                const originalName = font.originalName || `unknown-font-${index}`;
+                window.fontNameToId.set(originalName, fontFamilyName);
 
                 // フォント番号がある場合は、フォント名_番号の形式も登録
-                const parsed = parseFontName(font.originalName);
+                const parsed = parseFontName(originalName);
                 if (parsed) {
                     window.fontNameToId.set(`${parsed.name}_${parsed.number}`, fontFamilyName);
                 }
 
-                // FontFaceオブジェクトを作成
-                const fontFace = new FontFace(
-                    fontFamilyName,
-                    font.data,
-                    {
-                        style: 'normal',
-                        weight: '400',
-                        display: 'auto'
-                    }
-                );
+                try {
+                    // FontFaceオブジェクトを作成
+                    const fontFace = new FontFace(
+                        fontFamilyName,
+                        font.data,
+                        {
+                            style: 'normal',
+                            weight: '400',
+                            display: 'auto'
+                        }
+                    );
 
-                // フォントをロードし、フォントリストに追加
-                const loadPromise = fontFace.load()
-                    .then(loadedFace => {
-                        document.fonts.add(loadedFace);
-                        console.log(`フォント「${font.originalName}」を直接FontFace APIで登録: ${fontFamilyName}`);
-                        return loadedFace;
-                    })
-                    .catch(err => {
-                        console.error(`フォント「${font.originalName}」の読み込みに失敗:`, err);
-                    });
+                    // フォントをロードし、フォントリストに追加
+                    const loadPromise = fontFace.load()
+                        .then(loadedFace => {
+                            document.fonts.add(loadedFace);
+                            console.log(`フォント「${originalName}」を直接FontFace APIで登録: ${fontFamilyName}`);
+                            return loadedFace;
+                        })
+                        .catch(err => {
+                            console.error(`フォント「${originalName}」の読み込みに失敗:`, err);
+                            // エラーが発生してもプロセスは継続
+                        });
 
-                fontLoadingPromises.push(loadPromise);
+                    fontLoadingPromises.push(loadPromise);
+                } catch (fontFaceError) {
+                    // FontFace生成自体でエラーが発生した場合
+                    console.error(`フォント「${originalName}」のFontFace生成エラー:`, fontFaceError);
+                }
             } catch (error) {
-                console.error(`フォント「${font.originalName}」の処理エラー:`, error);
+                console.error(`フォント「${font.originalName || 'unknown'}」の処理エラー:`, error);
             }
         });
 
