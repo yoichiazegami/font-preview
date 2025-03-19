@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>フォントアップロード</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #dropZone {
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #status {
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>フォントアップロード</h1>
+
+    <div class="upload-area">
+        <div id="dropZone">
+            <p>ここにフォントファイルをドラッグ＆ドロップするか、<br>
+                <input type="file" id="fileInput" multiple accept=".woff,.woff2,.ttf,.otf">を使用してください
+            </p>
+        </div>
+    </div>
+
+    <button id="deployButton" disabled>Netlifyにデプロイ</button>
+    <div id="status"></div>
+
+    <script>
+        // GitHubトークンは実際には別の方法で保護する必要があります
+        const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN';
+        const REPO_OWNER = 'あなたのユーザー名';
+        const REPO_NAME = 'font-preview-share';
+        const FONTS_PATH = 'fonts/';
+
+        let uploadedFiles = [];
+
+        // ドラッグ&ドロップイベントの処理
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#e8f0fe';
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.background = '';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '';
+            handleFiles(e.dataTransfer.files);
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            uploadedFiles = Array.from(files);
+            document.getElementById('status').textContent = `${files.length}個のファイルが選択されました`;
+            document.getElementById('deployButton').disabled = false;
+        }
+
+        document.getElementById('deployButton').addEventListener('click', async () => {
+            if (uploadedFiles.length === 0) return;
+
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = 'アップロード中...';
+
+            try {
+                // 最新のコミットSHAを取得
+                const shaResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/main`, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                const shaData = await shaResponse.json();
+                const latestCommitSha = shaData.object.sha;
+
+                for (const file of uploadedFiles) {
+                    // ファイルをBase64に変換
+                    const reader = new FileReader();
+                    const fileContents = await new Promise((resolve) => {
+                        reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                        reader.readAsDataURL(file);
+                    });
+
+                    // GitHub APIを使用してファイルをコミット
+                    const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FONTS_PATH}${file.name}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${GITHUB_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: `フォント追加: ${file.name}`,
+                            content: fileContents,
+                            branch: 'main'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`アップロード失敗: ${file.name}`);
+                    }
+
+                    statusEl.textContent += `\n${file.name} アップロード完了`;
+                }
+
+                statusEl.textContent += '\n\nすべてのファイルがアップロードされました！Netlifyが自動デプロイを開始します（約30秒かかります）';
+
+                const NETLIFY_BUILD_HOOK = 'https://api.netlify.com/build_hooks/あなたのビルドフックID';
+
+                // すべてのファイルアップロード後に追加
+                await fetch(NETLIFY_BUILD_HOOK, { method: 'POST' });
+                statusEl.textContent += '\nNetlifyへのデプロイをトリガーしました！';
+            } catch (error) {
+                statusEl.textContent = `エラー: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+
+</html>

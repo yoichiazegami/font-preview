@@ -704,25 +704,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // fontsフォルダ内のフォントファイルを検出する関数
     async function detectFontsInFolder() {
         try {
-            // IndexedDBからフォントを読み込む
-            const dbFonts = await loadFontsFromIndexedDB();
-            if (dbFonts && dbFonts.length > 0) {
-                return dbFonts;
+            // サーバー上のfontsディレクトリのファイル一覧を取得
+            const response = await fetch('/api/list-fonts');
+            if (!response.ok) {
+                throw new Error('フォントリスト取得に失敗しました');
             }
 
-            // IndexedDBにフォントがない場合はデフォルトフォントを使用
-            console.log('デフォルトフォントを使用します');
-            // フォントファイルのパスを指定
-            const fontFiles = [
-                'fonts/AZEGAMI_01.woff2',
-                'fonts/AZEGAMI_02.woff2',
-                'fonts/TEST_03.woff2'
-            ];
+            const fontFiles = await response.json();
+            console.log(`サーバーから${fontFiles.length}個のフォントファイルを取得しました`);
 
             // フォントファイルを読み込む
             const fonts = [];
-            for (const fontPath of fontFiles) {
+            for (const fontInfo of fontFiles) {
                 try {
+                    const fontPath = `/fonts/${fontInfo.name}`;
                     const response = await fetch(fontPath);
                     if (!response.ok) {
                         console.error(`フォントファイル「${fontPath}」の読み込みに失敗しました`);
@@ -730,19 +725,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const fontData = await response.arrayBuffer();
-                    const displayName = fontPath.split('/').pop();
+                    const displayName = fontInfo.name;
                     const name = displayName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
 
-                    fonts.push({ name, displayName, data: fontData });
+                    // MIMEタイプを判定
+                    let fontMimeType;
+                    if (fontInfo.name.endsWith('.woff2')) fontMimeType = 'font/woff2';
+                    else if (fontInfo.name.endsWith('.woff')) fontMimeType = 'font/woff';
+                    else if (fontInfo.name.endsWith('.ttf')) fontMimeType = 'font/ttf';
+                    else if (fontInfo.name.endsWith('.otf')) fontMimeType = 'font/opentype';
+                    else {
+                        console.warn(`未知のフォント形式: ${fontInfo.name}`);
+                        continue;
+                    }
+
+                    fonts.push({ name, displayName, data: fontData, mimeType: fontMimeType });
                     console.log(`フォントファイル「${fontPath}」を読み込みました`);
                 } catch (error) {
-                    console.error(`フォントファイル「${fontPath}」の読み込みエラー:`, error);
+                    console.error(`フォントファイル「${fontInfo.name}」の読み込みエラー:`, error);
                 }
             }
 
             // フォントをページに追加
             if (fonts.length > 0) {
-                addFontsToPage(fonts);
+                await addFontsToPage(fonts);
+            } else {
+                console.warn('フォントを取得できませんでした');
             }
 
             return fonts;
