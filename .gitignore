@@ -1,1 +1,6 @@
- 
+# macOSシステムファイル
+.DS_Store
+**/.DS_Store
+
+# ノードモジュール
+node_modules/
