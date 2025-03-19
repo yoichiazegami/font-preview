@@ -440,38 +440,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // フォント名と番号を分離する関数
     function parseFontName(fontName) {
+        console.log(`フォント名を解析: ${fontName}`);
+
         // まず、拡張子を削除
         const nameWithoutExt = fontName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
 
-        // パターン1: name_123 形式
+        // パターン1: name_123 or name-123 形式
         let match = nameWithoutExt.match(/^(.+?)[-_](\d+)$/);
         if (match) {
+            console.log(`パターン1で一致: 名前=${match[1]}, 番号=${match[2]}`);
             return {
                 name: match[1],
                 number: match[2]
             };
         }
 
-        // パターン2: name123 形式（数字が末尾にある）
+        // パターン2: name123 形式（アルファベットの後に数字）
         match = nameWithoutExt.match(/^([A-Za-z]+)(\d+)$/);
         if (match) {
+            console.log(`パターン2で一致: 名前=${match[1]}, 番号=${match[2]}`);
             return {
                 name: match[1],
                 number: match[2]
             };
         }
 
-        // パターン3: 123name 形式（数字が先頭にある）
+        // パターン3: 123name 形式（数字の後にアルファベット）
         match = nameWithoutExt.match(/^(\d+)([A-Za-z]+)$/);
         if (match) {
+            console.log(`パターン3で一致: 名前=${match[2]}, 番号=${match[1]}`);
             return {
                 name: match[2],
                 number: match[1]
             };
         }
 
-        // パターンに一致しない場合はnullを返す
-        return null;
+        // パターン4: TEST_03のような形式
+        match = nameWithoutExt.match(/^([A-Za-z0-9]+)[_-](\d+)$/i);
+        if (match) {
+            console.log(`パターン4で一致: 名前=${match[1]}, 番号=${match[2]}`);
+            return {
+                name: match[1],
+                number: match[2]
+            };
+        }
+
+        // パターンに一致しない場合は、フォント名全体を名前として扱う
+        console.log(`パターンに一致しません。フォント名全体を使用: ${nameWithoutExt}`);
+        return {
+            name: nameWithoutExt,
+            number: null
+        };
     }
 
     // フォント名オプションを生成
@@ -482,18 +501,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const fontNames = new Set();
+        console.log(`createFontNameOptions: ${fontsInFolder.length}個のフォントから名前を収集`);
 
         // フォント名を収集
         fontsInFolder.forEach(font => {
             // originalNameがある場合はそれを使用、なければnameを使用
             const originalName = font.originalName || font.name;
+            console.log(`フォント処理: originalName=${originalName}, displayName=${font.displayName}`);
 
             const parsed = parseFontName(originalName);
             if (parsed) {
-                fontNames.add(parsed.name);
+                if (parsed.name) {
+                    fontNames.add(parsed.name);
+                    console.log(`フォント名を追加: ${parsed.name}`);
+                } else {
+                    // 名前がない場合は元の名前を使用
+                    fontNames.add(originalName);
+                    console.log(`フォント名（元）を追加: ${originalName}`);
+                }
             } else {
                 // パターンに一致しない場合は、フォント名全体を使用
                 fontNames.add(originalName);
+                console.log(`フォント名（フルネーム）を追加: ${originalName}`);
             }
         });
 
@@ -519,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fontNameSelect.appendChild(option);
         });
 
-        console.log(`${fontNames.size}個のフォント名オプション生成完了`);
+        console.log(`${fontNames.size}個のフォント名オプション生成完了: ${Array.from(fontNames).join(', ')}`);
     }
 
     // フォント番号オプションを生成
@@ -530,39 +559,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const selectedName = fontNameSelect.value;
-        console.log("選択されたフォント名:", selectedName);
+        console.log(`選択されたフォント名: ${selectedName}`);
 
-        // 選択されたフォント名がない場合は番号選択を無効化
         if (!selectedName) {
             fontNumberSelect.disabled = true;
             return;
         }
 
-        // 選択された名前に対応する番号を収集
+        // 選択されたフォント名に対応する番号を収集
         const numbers = new Set();
-        let hasNumbers = false;
-
         fontsInFolder.forEach(font => {
+            // originalNameがある場合はそれを使用、なければnameを使用
             const originalName = font.originalName || font.name;
             const parsed = parseFontName(originalName);
-            if (parsed && parsed.name === selectedName) {
+
+            if (parsed && parsed.name === selectedName && parsed.number) {
                 numbers.add(parsed.number);
-                hasNumbers = true;
-                console.log("フォント番号を追加:", parsed.number);
+                console.log(`フォント番号を追加: ${parsed.number}`);
             }
         });
 
-        // 番号が見つからない場合は、選択されたフォント名と一致するフォントを使用
-        if (!hasNumbers) {
-            fontNumberSelect.disabled = true;
-            return;
-        }
+        fontNumberSelect.disabled = numbers.size === 0;
 
-        fontNumberSelect.disabled = false;
-
-        // 番号を数値としてソートして追加
+        // オプションを生成（数値順でソート）
         Array.from(numbers)
-            .sort((a, b) => parseInt(a) - parseInt(b))
+            .sort((a, b) => {
+                // 数値として比較を試みる
+                const numA = parseInt(a, 10);
+                const numB = parseInt(b, 10);
+                // 両方が有効な数値なら数値として比較
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                }
+                // そうでなければ文字列として比較
+                return String(a).localeCompare(String(b));
+            })
             .forEach(number => {
                 const option = document.createElement('option');
                 option.value = number;
@@ -570,7 +601,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 fontNumberSelect.appendChild(option);
             });
 
-        console.log("フォント番号オプション生成完了:", Array.from(numbers));
+        console.log(`${numbers.size}個のフォント番号オプション生成完了: ${Array.from(numbers).join(', ')}`);
+
+        // 番号がなければ、フォント名だけで十分であることを示すオプションを追加
+        if (numbers.size === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'なし';
+            fontNumberSelect.appendChild(option);
+            console.log("番号のないフォントのため、「なし」オプションを追加");
+        }
     }
 
     // イベントリスナーの設定
@@ -596,116 +636,72 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePreview() {
         const selectedName = fontNameSelect.value;
         const selectedNumber = fontNumberSelect.value;
-        const selectedSize = fontSizeInput.value;
-        const selectedLetterSpacing = letterSpacingInput.value;
-        const selectedLineHeight = lineHeightInput.value;
-        const selectedWritingMode = writingModeSelect.value;
-        const selectedTextAlign = textAlignSelect.value;
-        const useNormalFont = useNormalFontCheckbox.checked;
 
-        console.log("プレビュー更新:", selectedName, selectedNumber);
+        console.log(`プレビュー更新 - 選択名: ${selectedName}, 選択番号: ${selectedNumber}`);
 
-        // フォント名の設定
-        let fontFamily;
-        let fontDisplayName;
-
-        if (useNormalFont) {
-            // 通常のフォントを使用する場合
-            fontFamily = 'Helvetica, Arial, sans-serif';
-            fontDisplayName = 'Helvetica';
-            console.log("通常フォント使用: Helvetica");
-        } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
-            // フルネームの生成（元のフォント名フォーマットを保持）
-            const originalFullName = `${selectedName}_${selectedNumber}`;
-
-            // マッピングからフォントIDを取得
-            const fontId = window.fontNameToId ?
-                window.fontNameToId.get(originalFullName) : null;
-
-            if (fontId) {
-                fontFamily = `'${fontId}', sans-serif`;
-                fontDisplayName = originalFullName;
-                console.log(`カスタムフォント使用: ${originalFullName} -> ID: ${fontId}`);
-            } else {
-                // 見つからない場合はデフォルトフォント
-                fontFamily = 'sans-serif';
-                fontDisplayName = originalFullName + ' (見つかりません)';
-                console.warn(`フォント「${originalFullName}」が見つかりません`);
-            }
-        } else if (selectedName) {
-            // マッピングからフォントIDを取得
-            const fontId = window.fontNameToId ?
-                window.fontNameToId.get(selectedName) : null;
-
-            if (fontId) {
-                fontFamily = `'${fontId}', sans-serif`;
-                fontDisplayName = selectedName;
-                console.log(`番号なしカスタムフォント使用: ${selectedName} -> ID: ${fontId}`);
-            } else {
-                // 見つからない場合はデフォルトフォント
-                fontFamily = 'sans-serif';
-                fontDisplayName = selectedName + ' (見つかりません)';
-                console.warn(`フォント「${selectedName}」が見つかりません`);
-            }
-        } else {
-            fontFamily = 'sans-serif';
-            fontDisplayName = 'デフォルト';
+        // フォント名が選択されていない場合
+        if (!selectedName) {
+            console.log("フォント名が選択されていないためプレビューをリセット");
+            resetPreview();
+            return;
         }
+
+        // 選択されたフォントを見つける
+        let selectedFont = null;
+
+        // まず、フォント名と番号の両方で検索
+        if (selectedNumber !== '' && selectedNumber !== 'なし') {
+            console.log(`名前と番号で検索: ${selectedName}, ${selectedNumber}`);
+            selectedFont = fontsInFolder.find(font => {
+                const originalName = font.originalName || font.name;
+                const parsed = parseFontName(originalName);
+                return parsed && parsed.name === selectedName && parsed.number === selectedNumber;
+            });
+        }
+
+        // 番号なしの場合または番号指定での検索が失敗した場合、名前だけで検索
+        if (!selectedFont) {
+            console.log(`番号なしまたは名前のみで検索: ${selectedName}`);
+            selectedFont = fontsInFolder.find(font => {
+                const originalName = font.originalName || font.name;
+                const parsed = parseFontName(originalName);
+                return parsed && parsed.name === selectedName;
+            });
+        }
+
+        // フォントが見つからない場合
+        if (!selectedFont) {
+            console.log("該当するフォントが見つからないためプレビューをリセット");
+            resetPreview();
+            return;
+        }
+
+        console.log(`選択されたフォント: `, selectedFont);
+
+        // 選択されたフォントのデータURLを取得
+        const fontDataUrl = selectedFont.dataUrl;
+        const fontName = selectedFont.displayName || selectedFont.name;
+
+        // フォントの詳細情報を表示
+        fontDataElement.textContent = fontName;
 
         // フォントスタイルを適用
-        applyStyles(fontFamily, fontDisplayName);
+        const fontFace = new FontFace(fontName, `url(${fontDataUrl})`);
+        fontFace.load().then(loadedFace => {
+            document.fonts.add(loadedFace);
 
-        // スタイルを適用する内部関数
-        function applyStyles(fontFam, displayName) {
-            // 縦書きクラスとテキスト揃えクラスの切り替え
-            // 一旦すべてのクラスを削除
-            previewText.classList.remove('vertical-writing', 'vertical-align-top', 'vertical-align-center', 'vertical-align-bottom');
+            // プレビューにフォントを適用
+            previewElement.style.fontFamily = `"${fontName}", sans-serif`;
+            console.log(`フォント "${fontName}" を適用しました`);
 
-            if (selectedWritingMode === 'vertical-rl') {
-                // 縦書きの場合
-                previewText.classList.add('vertical-writing');
-
-                // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
-                if (selectedTextAlign === 'left') {
-                    previewText.classList.add('vertical-align-top');
-                    previewText.style.textAlign = 'start';
-                } else if (selectedTextAlign === 'center') {
-                    previewText.classList.add('vertical-align-center');
-                    previewText.style.textAlign = 'center';
-                } else if (selectedTextAlign === 'right') {
-                    previewText.classList.add('vertical-align-bottom');
-                    previewText.style.textAlign = 'end';
-                }
-
-                // 表示名の変換
-                currentTextAlignDisplay.textContent =
-                    selectedTextAlign === 'left' ? '上揃え' :
-                        selectedTextAlign === 'center' ? '中央揃え' : '下揃え';
-            } else {
-                // 横書きの場合は通常のテキスト揃え
-                previewText.style.textAlign = selectedTextAlign;
-
-                // 表示名
-                currentTextAlignDisplay.textContent =
-                    selectedTextAlign === 'left' ? '左揃え' :
-                        selectedTextAlign === 'center' ? '中央揃え' : '右揃え';
-            }
-
-            // プレビューテキストのスタイル更新
-            previewText.style.fontFamily = fontFam;
-            previewText.style.fontSize = `${selectedSize}px`;
-            previewText.style.letterSpacing = `${selectedLetterSpacing}em`;
-            previewText.style.lineHeight = selectedLineHeight;
-
-            // 情報表示の更新
-            currentFontDisplay.textContent = displayName;
-            currentSizeDisplay.textContent = `${selectedSize}px`;
-            currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
-            currentLineHeightDisplay.textContent = selectedLineHeight;
-
-            // 詳細設定の表示更新（文字方向）
-            currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
-        }
+            // フォントの読み込み状態を更新
+            fontStatusElement.textContent = `フォント "${fontName}" を読み込みました`;
+            fontStatusElement.style.color = 'green';
+        }).catch(error => {
+            console.error("フォントの読み込みに失敗:", error);
+            fontStatusElement.textContent = `エラー: フォント "${fontName}" の読み込みに失敗しました`;
+            fontStatusElement.style.color = 'red';
+        });
     }
 
     // 名前と番号でフォントを検索する関数
@@ -788,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // フォント名を解析（拡張子を除去）
                     const displayName = font.name;
-                    const name = font.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+                    const originalName = font.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
 
                     // MIMEタイプを判定
                     let fontMimeType;
@@ -803,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     fonts.push({
-                        originalName: name,
+                        originalName,
                         displayName,
                         data: fontData,
                         mimeType: fontMimeType
@@ -828,6 +824,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // IndexedDBにフォントを保存
                 await saveFontsToIndexedDB(fonts);
+
+                // UIを更新
+                createFontNameOptions();
+                createFontNumberOptions();
+                updatePreview();
+
                 return fonts;
             } else {
                 console.warn('フォントを追加できませんでした。IndexedDBから読み込みを試みます...');
@@ -879,5 +881,20 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('IndexedDBへの保存エラー:', error);
         }
+    }
+
+    // プレビューをリセットする関数
+    function resetPreview() {
+        // フォント情報をリセット
+        fontDataElement.textContent = 'フォントが選択されていません';
+
+        // プレビュー表示をデフォルトに戻す
+        previewElement.style.fontFamily = 'sans-serif';
+
+        // フォントステータスをリセット
+        fontStatusElement.textContent = 'フォントが読み込まれていません';
+        fontStatusElement.style.color = '#666';
+
+        console.log('プレビューをリセットしました');
     }
 }); 
