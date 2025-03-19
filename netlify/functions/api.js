@@ -8,6 +8,20 @@ const app = express();
 // JSONリクエストのパーサー
 app.use(express.json());
 
+// CORSヘッダーを追加
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
+    // プリフライトリクエストの処理
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    next();
+});
+
 // Netlify Functionsではファイルシステムの読み書きに制限があるため
 // 一時的なメモリストレージを使用
 const fontStorage = {};
@@ -165,8 +179,17 @@ app.get('/api/font/:fontName', (req, res) => {
                 case '.otf': mimeType = 'font/otf'; break;
             }
 
+            // CORSヘッダーを追加（フォントファイル用）
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+            // キャッシュ設定
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
             res.setHeader('Content-Type', mimeType);
-            fs.createReadStream(fontPath).pipe(res);
+
+            // ファイルを読み込んでバッファとして送信
+            const fontData = fs.readFileSync(fontPath);
+            res.send(fontData);
             return;
         }
 
@@ -183,7 +206,14 @@ app.get('/api/font/:fontName', (req, res) => {
                 case '.otf': mimeType = 'font/otf'; break;
             }
 
+            // CORSヘッダーを追加（フォントファイル用）
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+
+            // キャッシュ設定
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
             res.setHeader('Content-Type', mimeType);
+
             res.send(Buffer.from(fontStorage[fontName].data));
             return;
         }

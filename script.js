@@ -550,51 +550,72 @@ document.addEventListener('DOMContentLoaded', () => {
         // 既存のスタイル要素を削除
         document.querySelectorAll('style.dynamic-font-faces').forEach(el => el.remove());
 
-        // 新しいスタイル要素を作成
-        const style = document.createElement('style');
-        style.className = 'dynamic-font-faces';
+        // 既存のCSSルールを削除
+        document.fonts.forEach(font => {
+            if (font.family.startsWith("'") && font.family.endsWith("'")) {
+                // カスタムフォントを削除
+                try {
+                    document.fonts.delete(font);
+                } catch (e) {
+                    console.warn('フォント削除エラー:', e);
+                }
+            }
+        });
 
-        // 各フォントデータをBlobに変換してURLを作成
+        console.log(`${fonts.length}個のフォントを登録します`);
+
+        // フォントデータを処理
         fonts.forEach(font => {
-            if (!font.data) return;
-
-            // 適切なMIMEタイプを設定
-            let mimeType;
-            let format;
-            if (font.displayName.endsWith('.woff2')) {
-                mimeType = 'font/woff2';
-                format = 'woff2';
-            } else if (font.displayName.endsWith('.woff')) {
-                mimeType = 'font/woff';
-                format = 'woff';
-            } else if (font.displayName.endsWith('.ttf')) {
-                mimeType = 'font/ttf';
-                format = 'truetype';
-            } else if (font.displayName.endsWith('.otf')) {
-                mimeType = 'font/otf';
-                format = 'opentype';
-            } else {
+            if (!font.data) {
+                console.warn(`フォント「${font.name}」にデータがありません`);
                 return;
             }
 
-            // Blobを作成
-            const blob = new Blob([font.data], { type: mimeType });
-            const fontUrl = URL.createObjectURL(blob);
+            try {
+                // 適切なMIMEタイプを設定
+                let format;
+                if (font.displayName.endsWith('.woff2')) {
+                    format = 'woff2';
+                } else if (font.displayName.endsWith('.woff')) {
+                    format = 'woff';
+                } else if (font.displayName.endsWith('.ttf')) {
+                    format = 'truetype';
+                } else if (font.displayName.endsWith('.otf')) {
+                    format = 'opentype';
+                } else {
+                    console.warn(`不明なフォント形式: ${font.displayName}`);
+                    return;
+                }
 
-            // @font-face定義を追加
-            style.textContent += `
-@font-face {
-    font-family: '${font.name}';
-    src: url('${fontUrl}') format('${format}');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-}`;
-            console.log(`フォント追加: ${font.name} (${format}形式)`);
+                // ArrayBufferをBlobに変換
+                const fontBlob = new Blob([font.data]);
+
+                // FontFaceを使用して直接フォントを登録
+                const fontFace = new FontFace(
+                    font.name,
+                    fontBlob,
+                    {
+                        style: 'normal',
+                        weight: 'normal',
+                        display: 'swap'
+                    }
+                );
+
+                // フォント読み込み完了時の処理
+                fontFace.load().then(loadedFace => {
+                    // フォントをドキュメントに追加
+                    document.fonts.add(loadedFace);
+                    console.log(`フォント追加完了: ${font.name} (${format}形式)`);
+
+                    // プレビューを更新（非同期で読み込まれるため）
+                    updatePreview();
+                }).catch(err => {
+                    console.error(`フォント「${font.name}」の読み込みエラー:`, err);
+                });
+            } catch (error) {
+                console.error(`フォント「${font.name}」の処理エラー:`, error);
+            }
         });
-
-        // スタイル要素をドキュメントに追加
-        document.head.appendChild(style);
     }
 
     // fontsフォルダ内のフォントファイルを検出する関数
@@ -789,73 +810,104 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
             // フルネームの生成
             const fullFontName = `${selectedName}_${selectedNumber}`;
-            fontFamily = `'${fullFontName}', sans-serif`;
+            // 引用符を削除してフォントファミリー名を設定
+            fontFamily = `${fullFontName}, sans-serif`;
             console.log("カスタムフォント使用:", fullFontName);
         } else if (selectedName) {
             // 番号がない場合はフォント名のみを使用
-            fontFamily = `'${selectedName}', sans-serif`;
+            // 引用符を削除してフォントファミリー名を設定
+            fontFamily = `${selectedName}, sans-serif`;
             console.log("番号なしカスタムフォント使用:", selectedName);
         } else {
             fontFamily = 'sans-serif';
         }
 
-        // 縦書きクラスとテキスト揃えクラスの切り替え
-        // 一旦すべてのクラスを削除
-        previewText.classList.remove('vertical-writing', 'vertical-align-top', 'vertical-align-center', 'vertical-align-bottom');
+        // フォントが読み込まれたか確認し、必要に応じて待機
+        if (!useNormalFont && selectedName) {
+            const fontToCheck = selectedNumber && !fontNumberSelect.disabled ?
+                `${selectedName}_${selectedNumber}` : selectedName;
 
-        if (selectedWritingMode === 'vertical-rl') {
-            // 縦書きの場合
-            previewText.classList.add('vertical-writing');
+            // フォントが読み込まれるのを待つ
+            document.fonts.ready.then(() => {
+                const fontLoaded = Array.from(document.fonts).some(font =>
+                    font.family.replace(/['\"]/g, '') === fontToCheck ||
+                    font.family === fontToCheck
+                );
 
-            // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
-            if (selectedTextAlign === 'left') {
-                previewText.classList.add('vertical-align-top');
-                previewText.style.textAlign = 'start';
-            } else if (selectedTextAlign === 'center') {
-                previewText.classList.add('vertical-align-center');
-                previewText.style.textAlign = 'center';
-            } else if (selectedTextAlign === 'right') {
-                previewText.classList.add('vertical-align-bottom');
-                previewText.style.textAlign = 'end';
+                if (fontLoaded) {
+                    console.log(`フォント「${fontToCheck}」は読み込まれています`);
+                } else {
+                    console.warn(`フォント「${fontToCheck}」はまだ読み込まれていません`);
+                }
+
+                // フォントがロードされていようがいまいが、スタイルを適用
+                applyStyles(fontFamily);
+            });
+        } else {
+            // 通常フォントの場合はすぐに適用
+            applyStyles(fontFamily);
+        }
+
+        // スタイルを適用する内部関数
+        function applyStyles(fontFam) {
+            // 縦書きクラスとテキスト揃えクラスの切り替え
+            // 一旦すべてのクラスを削除
+            previewText.classList.remove('vertical-writing', 'vertical-align-top', 'vertical-align-center', 'vertical-align-bottom');
+
+            if (selectedWritingMode === 'vertical-rl') {
+                // 縦書きの場合
+                previewText.classList.add('vertical-writing');
+
+                // 縦書きでのテキスト揃え（左→上、中央→中央、右→下）
+                if (selectedTextAlign === 'left') {
+                    previewText.classList.add('vertical-align-top');
+                    previewText.style.textAlign = 'start';
+                } else if (selectedTextAlign === 'center') {
+                    previewText.classList.add('vertical-align-center');
+                    previewText.style.textAlign = 'center';
+                } else if (selectedTextAlign === 'right') {
+                    previewText.classList.add('vertical-align-bottom');
+                    previewText.style.textAlign = 'end';
+                }
+
+                // 表示名の変換
+                currentTextAlignDisplay.textContent =
+                    selectedTextAlign === 'left' ? '上揃え' :
+                        selectedTextAlign === 'center' ? '中央揃え' : '下揃え';
+            } else {
+                // 横書きの場合は通常のテキスト揃え
+                previewText.style.textAlign = selectedTextAlign;
+
+                // 表示名
+                currentTextAlignDisplay.textContent =
+                    selectedTextAlign === 'left' ? '左揃え' :
+                        selectedTextAlign === 'center' ? '中央揃え' : '右揃え';
             }
 
-            // 表示名の変換
-            currentTextAlignDisplay.textContent =
-                selectedTextAlign === 'left' ? '上揃え' :
-                    selectedTextAlign === 'center' ? '中央揃え' : '下揃え';
-        } else {
-            // 横書きの場合は通常のテキスト揃え
-            previewText.style.textAlign = selectedTextAlign;
+            // プレビューテキストのスタイル更新
+            previewText.style.fontFamily = fontFam;
+            previewText.style.fontSize = `${selectedSize}px`;
+            previewText.style.letterSpacing = `${selectedLetterSpacing}em`;
+            previewText.style.lineHeight = selectedLineHeight;
 
-            // 表示名
-            currentTextAlignDisplay.textContent =
-                selectedTextAlign === 'left' ? '左揃え' :
-                    selectedTextAlign === 'center' ? '中央揃え' : '右揃え';
+            // 情報表示の更新
+            if (useNormalFont) {
+                currentFontDisplay.textContent = 'Helvetica';
+            } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
+                currentFontDisplay.textContent = `${selectedName}_${selectedNumber}`;
+            } else if (selectedName) {
+                currentFontDisplay.textContent = selectedName;
+            } else {
+                currentFontDisplay.textContent = 'デフォルト';
+            }
+
+            currentSizeDisplay.textContent = `${selectedSize}px`;
+            currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
+            currentLineHeightDisplay.textContent = selectedLineHeight;
+
+            // 詳細設定の表示更新（文字方向）
+            currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
         }
-
-        // プレビューテキストのスタイル更新
-        previewText.style.fontFamily = fontFamily;
-        previewText.style.fontSize = `${selectedSize}px`;
-        previewText.style.letterSpacing = `${selectedLetterSpacing}em`;
-        previewText.style.lineHeight = selectedLineHeight;
-
-        // 情報表示の更新
-        if (useNormalFont) {
-            currentFontDisplay.textContent = 'Helvetica';
-        } else if (selectedName && selectedNumber && !fontNumberSelect.disabled) {
-            currentFontDisplay.textContent = `${selectedName}_${selectedNumber}`;
-        } else if (selectedName) {
-            currentFontDisplay.textContent = selectedName;
-        } else {
-            currentFontDisplay.textContent = 'デフォルト';
-        }
-
-        currentSizeDisplay.textContent = `${selectedSize}px`;
-        currentLetterSpacingDisplay.textContent = `${selectedLetterSpacing}em`;
-        currentLineHeightDisplay.textContent = selectedLineHeight;
-
-        // 詳細設定の表示更新（文字方向）
-        currentWritingModeDisplay.textContent = selectedWritingMode === 'horizontal-tb' ? '横書き' : '縦書き';
     }
 
     // 初期化時にIndexedDBを開く
