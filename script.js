@@ -15,9 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentLetterSpacingDisplay = document.getElementById('current-letter-spacing');
     const currentLineHeightDisplay = document.getElementById('current-line-height');
 
-    // フォントリスト更新ボタン
-    const refreshFontsButton = document.getElementById('refresh-fonts');
-
     // 文字方向と文字揃え要素
     const writingModeSelect = document.getElementById('writing-mode');
     const textAlignSelect = document.getElementById('text-align');
@@ -95,47 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
     }
-
-    // フォントリスト更新ボタンの処理強化
-    refreshFontsButton.addEventListener('click', async () => {
-        try {
-            refreshFontsButton.disabled = true;
-            refreshFontsButton.textContent = '更新中...';
-
-            console.log('フォントリスト更新開始');
-
-            // GitHub経由で最新のフォントを取得
-            const repoFonts = await loadFontsFromRepository();
-
-            if (repoFonts && repoFonts.length > 0) {
-                console.log(`${repoFonts.length}個のフォントを取得しました`);
-                refreshFontsButton.textContent = `${repoFonts.length}個のフォントを更新しました`;
-            } else {
-                console.log('新しいフォントはありませんでした');
-                refreshFontsButton.textContent = 'フォントが見つかりませんでした';
-            }
-
-            // フォントオプションを更新
-            createFontNameOptions();
-            createFontNumberOptions();
-
-            // プレビューを更新
-            updatePreview();
-
-            setTimeout(() => {
-                refreshFontsButton.textContent = 'フォントリストを更新';
-                refreshFontsButton.disabled = false;
-            }, 2000);
-        } catch (error) {
-            console.error('フォントリスト更新エラー:', error);
-            refreshFontsButton.textContent = '更新エラー';
-
-            setTimeout(() => {
-                refreshFontsButton.textContent = 'フォントリストを更新';
-                refreshFontsButton.disabled = false;
-            }, 2000);
-        }
-    });
 
     // 初期値の設定
     fontSizeInput.value = 60;
