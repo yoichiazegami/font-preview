@@ -1,11 +1,20 @@
 [build]
-  command = "npm install"
+  command = "node generate-fontlist.js"
   publish = "."
   functions = "netlify/functions"
 
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["express", "multer"]
+
+[build.environment]
+  NODE_VERSION = "14"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=31536000"
 
 [[headers]]
   for = "/api/font/*"

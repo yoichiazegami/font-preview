@@ -704,50 +704,121 @@ document.addEventListener('DOMContentLoaded', () => {
     // fontsフォルダ内のフォントファイルを検出する関数
     async function detectFontsInFolder() {
         try {
-            // サーバー上のfontsディレクトリのファイル一覧を取得
-            const response = await fetch('/api/list-fonts');
-            if (!response.ok) {
-                throw new Error('フォントリスト取得に失敗しました');
+            // 静的サイト向けに変更：fontsディレクトリを直接リクエスト
+            const fontsPath = '/fonts/';
+
+            // フォントリスト用のリクエスト（GitHubの場合は直接ディレクトリリストが取得できないため、コード対応が必要）
+            try {
+                // サーバーから提供されるJSONリストがある場合（推奨、自動デプロイ時に生成されるべき）
+                const response = await fetch('/fontlist.json');
+
+                if (response.ok) {
+                    // JSONリストがある場合はそれを使用
+                    const fontFiles = await response.json();
+                    console.log(`fontlist.jsonから${fontFiles.length}個のフォントファイルを取得しました`);
+                    await loadFontsFromList(fontFiles, fontsPath);
+                    return;
+                }
+            } catch (listError) {
+                console.log('fontlist.jsonが見つかりません。直接ファイル取得を試みます。');
             }
 
-            const fontFiles = await response.json();
-            console.log(`サーバーから${fontFiles.length}個のフォントファイルを取得しました`);
-
-            // フォントファイルを読み込む
+            // フォールバック：直接ディレクトリ内の.woffや.ttfファイルを試行
+            // 注：これは効率的ではありませんが、静的サイトでの代替手段として機能します
+            const fontExtensions = ['.woff2', '.woff', '.ttf', '.otf'];
             const fonts = [];
+
+            // TEST_01～TEST_10.woff2のような命名パターンを想定してフォントを試行
+            for (let i = 1; i <= 50; i++) {
+                const num = i.toString().padStart(2, '0');
+                for (const ext of fontExtensions) {
+                    const fontName = `TEST_${num}${ext}`;
+                    try {
+                        const fontUrl = `${fontsPath}${fontName}`;
+                        console.log(`フォントを試行: ${fontUrl}`);
+
+                        const fontResponse = await fetch(fontUrl, { method: 'HEAD' });
+                        if (fontResponse.ok) {
+                            // ファイルが存在する場合
+                            console.log(`フォントが見つかりました: ${fontName}`);
+                            fonts.push({
+                                name: fontName,
+                                url: fontUrl
+                            });
+                        }
+                    } catch (e) {
+                        // 404などのエラーは正常、ファイルが存在しないだけ
+                        console.log(`フォント${fontName}は見つかりませんでした`);
+                    }
+                }
+            }
+
+            // 見つかったフォントを読み込む
+            console.log(`${fonts.length}個のフォントファイルが見つかりました`);
+            await loadFontsFromList(fonts, fontsPath);
+
+            return fonts;
+        } catch (error) {
+            console.error('フォント検出エラー:', error);
+            return [];
+        }
+    }
+
+    // フォントリストからフォントを読み込む関数
+    async function loadFontsFromList(fontFiles, basePath = '/fonts/') {
+        try {
+            const fonts = [];
+
             for (const fontInfo of fontFiles) {
                 try {
-                    const fontPath = `/fonts/${fontInfo.name}`;
-                    const response = await fetch(fontPath);
+                    // fontInfoがオブジェクトの場合と文字列の場合の両方に対応
+                    const fontName = typeof fontInfo === 'string' ? fontInfo : fontInfo.name;
+                    const fontUrl = typeof fontInfo === 'string' ?
+                        `${basePath}${fontInfo}` : (fontInfo.url || `${basePath}${fontInfo.name}`);
+
+                    console.log(`フォント「${fontName}」をリクエスト: ${fontUrl}`);
+
+                    const response = await fetch(fontUrl);
                     if (!response.ok) {
-                        console.error(`フォントファイル「${fontPath}」の読み込みに失敗しました`);
+                        console.error(`フォント「${fontName}」の取得に失敗しました: ${response.status} ${response.statusText}`);
                         continue;
                     }
 
                     const fontData = await response.arrayBuffer();
-                    const displayName = fontInfo.name;
-                    const name = displayName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+                    console.log(`フォント「${fontName}」を取得しました (${fontData.byteLength} bytes)`);
 
-                    // MIMEタイプを判定
+                    const displayName = fontName;
+                    const name = fontName.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+
+                    // フォントのMIMEタイプを判定
                     let fontMimeType;
-                    if (fontInfo.name.endsWith('.woff2')) fontMimeType = 'font/woff2';
-                    else if (fontInfo.name.endsWith('.woff')) fontMimeType = 'font/woff';
-                    else if (fontInfo.name.endsWith('.ttf')) fontMimeType = 'font/ttf';
-                    else if (fontInfo.name.endsWith('.otf')) fontMimeType = 'font/opentype';
+                    if (fontName.endsWith('.woff2')) fontMimeType = 'font/woff2';
+                    else if (fontName.endsWith('.woff')) fontMimeType = 'font/woff';
+                    else if (fontName.endsWith('.ttf')) fontMimeType = 'font/ttf';
+                    else if (fontName.endsWith('.otf')) fontMimeType = 'font/opentype';
                     else {
-                        console.warn(`未知のフォント形式: ${fontInfo.name}`);
+                        console.warn(`未知のフォント形式: ${fontName}`);
                         continue;
                     }
 
-                    fonts.push({ name, displayName, data: fontData, mimeType: fontMimeType });
-                    console.log(`フォントファイル「${fontPath}」を読み込みました`);
-                } catch (error) {
-                    console.error(`フォントファイル「${fontInfo.name}」の読み込みエラー:`, error);
+                    // オリジナルのフォント名を保持
+                    const fontObj = {
+                        originalName: name,
+                        displayName,
+                        data: fontData,
+                        mimeType: fontMimeType
+                    };
+
+                    fonts.push(fontObj);
+
+                } catch (err) {
+                    console.error(`フォント「${fontInfo.name || fontInfo}」の読み込みエラー:`, err);
                 }
             }
 
             // フォントをページに追加
             if (fonts.length > 0) {
+                console.log(`${fonts.length}個のフォントをページに追加します`);
                 await addFontsToPage(fonts);
             } else {
                 console.warn('フォントを取得できませんでした');
@@ -755,7 +826,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return fonts;
         } catch (error) {
-            console.error('フォント検出エラー:', error);
+            console.error('フォントリストのロードエラー:', error);
             return [];
         }
     }
