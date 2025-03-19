@@ -15,12 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentLetterSpacingDisplay = document.getElementById('current-letter-spacing');
     const currentLineHeightDisplay = document.getElementById('current-line-height');
 
-    // 管理者機能の要素
-    const adminToggle = document.getElementById('admin-toggle');
-    const adminPanel = document.getElementById('admin-panel');
-    const fontUpload = document.getElementById('font-upload');
-    const uploadStatus = document.getElementById('upload-status');
-    const uploadedFontsList = document.getElementById('uploaded-fonts');
+    // フォントリスト更新ボタン
     const refreshFontsButton = document.getElementById('refresh-fonts');
 
     // 文字方向と文字揃え要素
@@ -41,10 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // IndexedDBを初期化
             await initIndexedDB();
 
-            // サーバーからフォントをロード
-            await loadServerFonts();
-
-            // Githubリポジトリからフォントをロード (新機能)
+            // Githubリポジトリからフォントをロード
             await loadFontsFromRepository();
 
             // フォントオプションを生成
@@ -104,346 +96,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 管理者パネルの表示切り替え
-    adminToggle.addEventListener('click', () => {
-        adminPanel.classList.toggle('hidden');
-        if (!adminPanel.classList.contains('hidden')) {
-            loadUploadedFontsToList();
-        }
-    });
-
-    // フォントファイルをアップロード
-    fontUpload.addEventListener('change', async (event) => {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
-
-        uploadStatus.textContent = `${files.length}個のファイルを処理中...`;
-        uploadStatus.style.color = '#3498db';
-
-        try {
-            // サーバーへのアップロード処理
-            const formData = new FormData();
-            for (let i = 0; i < files.length; i++) {
-                formData.append('fonts', files[i]);
-            }
-
-            // サーバーAPIを呼び出し
-            const response = await fetch('/api/upload-font', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'アップロードに失敗しました');
-            }
-
-            const result = await response.json();
-            console.log('アップロード結果:', result);
-
-            uploadStatus.textContent = result.message || `${result.files.length}個のフォントを保存しました。`;
-            uploadStatus.style.color = '#27ae60';
-
-            // アップロードリスト更新
-            loadUploadedFontsToList();
-
-            // フォントリストを更新してプレビューに反映
-            await loadServerFonts();
-            createFontNameOptions();
-            createFontNumberOptions();
-            updatePreview();
-
-            // IndexedDBにもフォントを保存（オフライン利用のため）
-            await saveServerFontsToIndexedDB(result.files.map(file => file.name));
-
-        } catch (error) {
-            console.error('フォントアップロードエラー:', error);
-            uploadStatus.textContent = `エラー: ${error.message || error}`;
-            uploadStatus.style.color = '#e74c3c';
-        }
-
-        // フォーム初期化
-        fontUpload.value = '';
-    });
-
-    // サーバーからフォントリストを取得
-    async function loadServerFonts() {
-        try {
-            const response = await fetch('/api/list-fonts');
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'フォントリスト取得に失敗しました');
-            }
-
-            const fontsList = await response.json();
-            console.log(`サーバーから${fontsList.length}個のフォントファイルを取得しました`);
-
-            // サーバーフォントを取得してロード
-            const serverFonts = await loadFontsFromServer(fontsList);
-
-            // fontsInFolderを更新
-            fontsInFolder = serverFonts;
-
-            return serverFonts;
-        } catch (error) {
-            console.error('サーバーフォント取得エラー:', error);
-            return [];
-        }
-    }
-
-    // サーバーからフォントファイルを取得してロード
-    async function loadFontsFromServer(fontsList) {
-        try {
-            const fonts = [];
-
-            for (const fontInfo of fontsList) {
-                try {
-                    // サーバーからフォントデータを取得
-                    const fontUrl = `/api/font/${encodeURIComponent(fontInfo.name)}`;
-                    console.log(`フォント「${fontInfo.name}」をリクエスト: ${fontUrl}`);
-
-                    // キャッシュバスティングを追加（開発時のみ）
-                    const requestUrl = fontUrl + (window.location.hostname === 'localhost' ?
-                        `?_=${new Date().getTime()}` : '');
-
-                    const response = await fetch(requestUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': '*/*',
-                            'Cache-Control': 'no-cache'
-                        },
-                        credentials: 'same-origin'
-                    });
-
-                    if (!response.ok) {
-                        console.error(`フォント「${fontInfo.name}」の取得に失敗しました: ${response.status} ${response.statusText}`);
-                        continue;
-                    }
-
-                    const fontData = await response.arrayBuffer();
-                    console.log(`フォント「${fontInfo.name}」を取得しました (${fontData.byteLength} bytes)`);
-
-                    const displayName = fontInfo.name;
-                    const name = fontInfo.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
-
-                    // フォントのMIMEタイプを判定
-                    let fontMimeType;
-                    if (fontInfo.name.endsWith('.woff2')) {
-                        fontMimeType = 'font/woff2';
-                    } else if (fontInfo.name.endsWith('.woff')) {
-                        fontMimeType = 'font/woff';
-                    } else if (fontInfo.name.endsWith('.ttf')) {
-                        fontMimeType = 'font/ttf';
-                    } else if (fontInfo.name.endsWith('.otf')) {
-                        fontMimeType = 'font/opentype';
-                    } else {
-                        console.warn(`未知のフォント形式: ${fontInfo.name}`);
-                        continue;
-                    }
-
-                    // オリジナルのフォント名を保持
-                    const fontObj = {
-                        originalName: name,
-                        displayName,
-                        data: fontData,
-                        mimeType: fontMimeType
-                    };
-
-                    fonts.push(fontObj);
-
-                } catch (err) {
-                    console.error(`フォント「${fontInfo.name}」の読み込みエラー:`, err);
-                }
-            }
-
-            // フォントをページに追加
-            if (fonts.length > 0) {
-                console.log(`${fonts.length}個のフォントをページに追加します`);
-                await addFontsToPage(fonts);
-            } else {
-                console.warn('サーバーからフォントを取得できませんでした');
-            }
-
-            return fonts;
-        } catch (error) {
-            console.error('サーバーフォントのロードエラー:', error);
-            return [];
-        }
-    }
-
-    // サーバーからロードしたフォントをIndexedDBに保存（オフライン利用のため）
-    async function saveServerFontsToIndexedDB(fontNames) {
-        try {
-            await initIndexedDB();
-
-            for (const fontName of fontNames) {
-                try {
-                    // すでに保存済みかチェック
-                    const existingFont = await checkFontExists(fontName);
-                    if (existingFont) {
-                        console.log(`フォント「${fontName}」は既にIndexedDBに保存されています`);
-                        continue;
-                    }
-
-                    // サーバーからフォントデータを取得
-                    const response = await fetch(`/api/font/${encodeURIComponent(fontName)}`);
-                    if (!response.ok) {
-                        console.error(`フォント「${fontName}」の取得に失敗しました`);
-                        continue;
-                    }
-
-                    const fontData = await response.arrayBuffer();
-
-                    // IndexedDBに保存
-                    const transaction = db.transaction([STORE_NAME], 'readwrite');
-                    const store = transaction.objectStore(STORE_NAME);
-
-                    await new Promise((resolve, reject) => {
-                        const request = store.put({
-                            name: fontName,
-                            data: fontData,
-                            dateAdded: new Date().toISOString()
-                        });
-
-                        request.onsuccess = () => {
-                            console.log(`フォント「${fontName}」をIndexedDBに保存しました`);
-                            resolve();
-                        };
-
-                        request.onerror = (e) => {
-                            console.error(`フォント「${fontName}」の保存エラー:`, e.target.error);
-                            reject(e.target.error);
-                        };
-                    });
-
-                } catch (err) {
-                    console.error(`フォント「${fontName}」の保存処理エラー:`, err);
-                }
-            }
-        } catch (error) {
-            console.error('IndexedDBへの保存エラー:', error);
-        }
-    }
-
-    // フォントがIndexedDBに存在するかチェック
-    async function checkFontExists(fontName) {
-        try {
-            await initIndexedDB();
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-
-            return new Promise((resolve, reject) => {
-                const request = store.get(fontName);
-
-                request.onsuccess = () => {
-                    resolve(request.result);
-                };
-
-                request.onerror = (e) => {
-                    console.error('フォント存在チェックエラー:', e.target.error);
-                    reject(e.target.error);
-                };
-            });
-        } catch (error) {
-            console.error('IndexedDBチェックエラー:', error);
-            return null;
-        }
-    }
-
-    // アップロードされたフォントをリストに表示
-    async function loadUploadedFontsToList() {
-        try {
-            // サーバーからフォントリストを取得
-            const response = await fetch('/api/list-fonts');
-            if (!response.ok) {
-                throw new Error('フォントリスト取得に失敗しました');
-            }
-
-            const fonts = await response.json();
-            uploadedFontsList.innerHTML = '';
-
-            if (fonts.length === 0) {
-                const li = document.createElement('li');
-                li.textContent = 'アップロードされたフォントはありません';
-                uploadedFontsList.appendChild(li);
-                return;
-            }
-
-            fonts.forEach(font => {
-                const li = document.createElement('li');
-                li.className = 'font-item';
-
-                // フォント名
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = font.name;
-                nameSpan.className = 'font-name';
-                li.appendChild(nameSpan);
-
-                // 削除ボタン
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = '削除';
-                deleteBtn.className = 'delete-font-btn';
-                deleteBtn.addEventListener('click', async () => {
-                    await deleteFont(font.name);
-                });
-                li.appendChild(deleteBtn);
-
-                uploadedFontsList.appendChild(li);
-            });
-        } catch (error) {
-            console.error('フォントリスト更新エラー:', error);
-        }
-    }
-
-    // フォントを削除
-    async function deleteFont(fontName) {
-        try {
-            // サーバーからフォントを削除
-            const response = await fetch(`/api/font/${encodeURIComponent(fontName)}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'フォント削除に失敗しました');
-            }
-
-            const result = await response.json();
-            console.log(result.message);
-
-            // IndexedDBからも削除
-            try {
-                await initIndexedDB();
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                store.delete(fontName);
-            } catch (dbError) {
-                console.error('IndexedDBからの削除エラー:', dbError);
-            }
-
-            // リストを更新
-            await loadUploadedFontsToList();
-
-            // フォントリストを更新してプレビューに反映
-            await loadServerFonts();
-            createFontNameOptions();
-            createFontNumberOptions();
-            updatePreview();
-
-        } catch (error) {
-            console.error('フォント削除エラー:', error);
-            alert(`エラー: ${error.message || error}`);
-        }
-    }
-
-    // フォントリストの更新ボタン
+    // フォントリスト更新ボタンの処理強化
     refreshFontsButton.addEventListener('click', async () => {
         try {
-            // リポジトリからフォントを再ロード（新機能）
-            await loadFontsFromRepository();
+            refreshFontsButton.disabled = true;
+            refreshFontsButton.textContent = '更新中...';
 
-            // サーバーからフォントを再ロード
-            await loadServerFonts();
+            console.log('フォントリスト更新開始');
+
+            // GitHub経由で最新のフォントを取得
+            const repoFonts = await loadFontsFromRepository();
+
+            if (repoFonts && repoFonts.length > 0) {
+                console.log(`${repoFonts.length}個のフォントを取得しました`);
+                refreshFontsButton.textContent = `${repoFonts.length}個のフォントを更新しました`;
+            } else {
+                console.log('新しいフォントはありませんでした');
+                refreshFontsButton.textContent = 'フォントが見つかりませんでした';
+            }
 
             // フォントオプションを更新
             createFontNameOptions();
@@ -452,18 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // プレビューを更新
             updatePreview();
 
-            // アップロードされたフォントリストを更新
-            await loadUploadedFontsToList();
-
-            refreshFontsButton.textContent = 'フォントリストを更新しました！';
             setTimeout(() => {
                 refreshFontsButton.textContent = 'フォントリストを更新';
+                refreshFontsButton.disabled = false;
             }, 2000);
         } catch (error) {
             console.error('フォントリスト更新エラー:', error);
-            refreshFontsButton.textContent = 'エラーが発生しました';
+            refreshFontsButton.textContent = '更新エラー';
+
             setTimeout(() => {
                 refreshFontsButton.textContent = 'フォントリストを更新';
+                refreshFontsButton.disabled = false;
             }, 2000);
         }
     });
@@ -1065,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('IndexedDB初期化エラー:', error);
     });
 
-    // script.jsのフォント検出・読み込み部分の更新
+    // フォント検出・読み込み部分の更新
     async function loadFontsFromRepository() {
         try {
             console.log('GitHubリポジトリからフォントを読み込みます...');
@@ -1132,14 +801,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`GitHub経由で${fonts.length}個のフォントをページに追加します`);
                 await addFontsToPage(fonts);
 
-                // fontsInFolderにリポジトリからのフォントを追加
-                fontsInFolder = [...fontsInFolder, ...fonts];
+                // fontsInFolderに新しいフォントを設定（上書き）
+                fontsInFolder = fonts;
+
+                // IndexedDBにフォントを保存
+                await saveFontsToIndexedDB(fonts);
             }
 
             return fonts;
         } catch (error) {
             console.error('GitHubリポジトリからのフォント読み込みエラー:', error);
             return [];
+        }
+    }
+
+    // フォントをIndexedDBに保存（オフライン利用のため）
+    async function saveFontsToIndexedDB(fonts) {
+        try {
+            await initIndexedDB();
+
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            // 既存のフォントを一度クリアする
+            store.clear();
+
+            for (const font of fonts) {
+                await new Promise((resolve, reject) => {
+                    const request = store.put({
+                        name: font.displayName,
+                        data: font.data,
+                        dateAdded: new Date().toISOString()
+                    });
+
+                    request.onsuccess = () => {
+                        console.log(`フォント「${font.displayName}」をIndexedDBに保存しました`);
+                        resolve();
+                    };
+
+                    request.onerror = (e) => {
+                        console.error(`フォント「${font.displayName}」の保存エラー:`, e.target.error);
+                        reject(e.target.error);
+                    };
+                });
+            }
+
+            console.log(`合計${fonts.length}個のフォントをIndexedDBに保存しました`);
+        } catch (error) {
+            console.error('IndexedDBへの保存エラー:', error);
         }
     }
 }); 

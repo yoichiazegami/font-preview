@@ -335,13 +335,24 @@ button:hover {
 
 /* フォント更新ボタン */
 .refresh-button {
-    margin-top: 10px;
     width: 100%;
-    background-color: #2ecc71;
+    background-color: #27ae60;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s, opacity 0.3s;
 }
 
 .refresh-button:hover {
-    background-color: #27ae60;
+    background-color: #219653;
+}
+
+.refresh-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 /* アップロードボタンのスタイル改善 */
@@ -378,4 +389,10 @@ input[type="file"] {
     font-size: 10px;
     color: #999;
     opacity: 0.7;
+}
+
+/* フォントリスト更新セクション */
+.font-refresh-section {
+    margin-top: 15px;
+    width: 100%;
 }
